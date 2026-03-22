@@ -1,16 +1,16 @@
 ---
 name: setup-remote-workspace
-description: "원격 장비의 특정 workspace를 Orchestrator에 연결. setup-remote-project와 유사하지만 단일 workspace 단위로 설정. /setup-remote-workspace 로 실행. 'remote workspace 연결', '원격 워크스페이스 설정' 요청에 사용."
+description: "Connect a specific workspace on a remote machine to the Orchestrator. Similar to setup-remote-project but scoped to a single workspace. Run with /setup-remote-workspace. Use for requests like 'connect remote workspace', 'setup remote workspace'."
 ---
 
 # Setup Remote Workspace
 
-원격 장비의 특정 workspace 하나를 Orchestrator에 연결한다.
+Connects a single specific workspace on a remote machine to the Orchestrator.
 
 ## Difference from /setup-remote-project
 
-- `/setup-remote-project`: 프로젝트 전체를 원격으로 연결 (하위 workspace 포함)
-- `/setup-remote-workspace`: 특정 workspace 하나만 원격으로 연결
+- `/setup-remote-project`: connects an entire project remotely (including all its workspaces)
+- `/setup-remote-workspace`: connects only one specific workspace remotely
 
 ## Flow
 

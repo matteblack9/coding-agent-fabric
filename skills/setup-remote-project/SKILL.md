@@ -1,18 +1,18 @@
 ---
 name: setup-remote-project
-description: "원격 장비(SSH/kubectl)에 listener를 배포하여 Orchestrator가 해당 장비의 프로젝트를 workspace로 사용 가능하게 설정. /setup-remote-project 로 실행. 'remote project 연결', '원격 프로젝트 설정', 'SSH 프로젝트 연결' 요청에 사용."
+description: "Deploy a listener on a remote machine (SSH/kubectl) so the Orchestrator can use that machine's project as a workspace. Run with /setup-remote-project. Use for requests like 'connect remote project', 'setup remote project', 'connect SSH project'."
 ---
 
 # Setup Remote Project
 
-원격 장비(SSH) 또는 Kubernetes Pod에 listener를 배포하여, Orchestrator가 원격 환경의 프로젝트를 workspace로 사용할 수 있게 한다.
+Deploys a listener on a remote machine (SSH) or Kubernetes Pod so the Orchestrator can use the remote environment's project as a workspace.
 
 ## How It Works
 
-1. 원격 장비에 lightweight HTTP listener(`listener.py`)를 배포
-2. listener는 Orchestrator로부터 HTTP로 task를 수신
-3. listener가 로컬에서 `claude-agent-sdk query(cwd=workspace/)` 실행
-4. 결과를 JSON으로 반환
+1. Deploy a lightweight HTTP listener (`listener.py`) on the remote machine
+2. The listener receives tasks from the Orchestrator over HTTP
+3. The listener runs `claude-agent-sdk query(cwd=workspace/)` locally
+4. Results are returned as JSON
 
 ## Flow
 

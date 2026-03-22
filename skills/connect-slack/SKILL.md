@@ -1,16 +1,16 @@
 ---
 name: connect-slack
-description: "Slack 채널을 기존 Orchestrator에 연결. Slack App 생성 가이드, credential 입력, Socket Mode 설정, 연결 테스트까지 수행. /connect-slack 으로 실행. 'slack 연결', 'connect slack', 'slack 채널 추가' 요청에 사용."
+description: "Connect Slack to an existing Orchestrator. Guides through Slack App creation, credential input, Socket Mode configuration, and connection test. Run with /connect-slack. Use for requests like 'connect slack', 'add slack channel'."
 ---
 
 # Connect Slack Channel
 
-기존에 설치된 Orchestrator에 Slack 채널을 추가로 연결한다.
+Connects a Slack channel to an already-installed Orchestrator.
 
 ## Prerequisites
 
-- `orchestrator/` 디렉토리가 현재 폴더에 존재해야 함
-- `orchestrator.yaml` 파일이 존재해야 함
+- `orchestrator/` directory must exist in the current folder
+- `orchestrator.yaml` must exist
 
 ## Flow
 

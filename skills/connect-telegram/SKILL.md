@@ -1,11 +1,11 @@
 ---
 name: connect-telegram
-description: "Telegram 채널을 기존 Orchestrator에 연결. BotFather로 봇 생성 가이드, bot_token 입력, long polling 연결 테스트까지 수행. /connect-telegram 으로 실행. 'telegram 연결', 'connect telegram', '텔레그램 채널 추가' 요청에 사용."
+description: "Connect Telegram to an existing Orchestrator. Guides through bot creation via BotFather, bot_token input, and long-polling connection test. Run with /connect-telegram. Use for requests like 'connect telegram', 'add telegram channel'."
 ---
 
 # Connect Telegram Channel
 
-기존에 설치된 Orchestrator에 Telegram 채널을 추가로 연결한다.
+Connects a Telegram channel to an already-installed Orchestrator.
 
 ## Flow
 

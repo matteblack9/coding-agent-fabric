@@ -1,11 +1,11 @@
 ---
 name: setup-orchestrator
-description: "Claude-Code-Tunnels 셋업. 현재 디렉토리에 Project Orchestrator를 설치하고, 환경 변수를 설정하고, 하위 workspace를 인식하고, 메신저(Slack/Telegram) 채널을 연동 및 테스트하는 전체 셋업. /setup-orchestrator 로 실행. 'orchestrator 설치', 'PO 셋업', 'setup orchestrator', '오케스트레이터 설치' 등의 요청에 사용."
+description: "Full Claude-Code-Tunnels setup. Installs the Project Orchestrator in the current directory, configures environment, discovers workspaces, connects Slack/Telegram channels, and tests the connection. Run with /setup-orchestrator. Use for requests like 'install orchestrator', 'setup PO', 'setup orchestrator'."
 ---
 
 # Claude-Code-Tunnels Setup
 
-사용자의 프로젝트 디렉토리에 Claude-Code-Tunnels (Project Orchestrator)를 설치한다.
+Installs Claude-Code-Tunnels (Project Orchestrator) into the user's project directory.
 
 ## Source Code
 
