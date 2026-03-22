@@ -29,25 +29,86 @@ Same as /setup-remote-project:
 - SSH: host, user, key path
 - kubectl: pod, namespace, kubeconfig, container
 
-### Step 3: Remote Workspace Path
+### Step 3: Collect Environment Variables
+
+Ask the user for ALL of the following — do not assume defaults without confirming:
 
 ```
-remote_cwd: /absolute/path/to/workspace/on/remote
-listener_port: 9100 (or next available)
+1. LISTENER_CWD  : Absolute path to the workspace on the remote host (required)
+                   Example: /home/user/my-project/backend
+
+2. LISTENER_PORT : Port for the listener to bind on (default: 9100)
+                   If multiple workspaces run on the same host, each needs a different port.
+                   Confirm this port is open and not already in use.
+
+3. LISTENER_TOKEN: Bearer token for auth (recommended — leave empty to disable auth)
+                   Generate a strong random value, e.g.: openssl rand -hex 32
+
+4. PYTHON_CMD    : Python command on the remote host (default: python3)
+                   Verify with: ssh USER@HOST "command -v python3 && python3 --version"
+
+5. PIP_CMD       : pip command on the remote host (default: pip3)
+                   Verify with: ssh USER@HOST "pip3 --version"
 ```
 
-### Step 4: Deploy & Register
+Show a confirmation summary before proceeding:
+```
+Remote workspace environment:
+  Project       : <project>
+  Workspace     : <workspace>
+  LISTENER_CWD  : <value>
+  LISTENER_PORT : <value>
+  LISTENER_TOKEN: <set / not set>
+  PYTHON_CMD    : <value>
+  PIP_CMD       : <value>
+
+Proceed? (yes / update values)
+```
+
+### Step 4: Verify Remote Prerequisites
+
+Before deploying, verify on the remote host:
+
+```bash
+# Check Python version (must be 3.10+)
+ssh USER@HOST "$PYTHON_CMD --version"
+
+# Check claude CLI is in PATH
+ssh USER@HOST "command -v claude && claude --version"
+
+# Check port availability
+ssh USER@HOST "ss -tlnp | grep :$LISTENER_PORT || echo 'port is free'"
+```
+
+If any check fails, stop and tell the user what needs to be fixed before continuing.
+
+### Step 5: Deploy & Register
 
 1. Deploy listener.py to remote host
-2. Add entry to orchestrator.yaml remote_workspaces
-3. Test health check
+2. Add entry to `orchestrator.yaml` remote_workspaces:
+```yaml
+remote_workspaces:
+  - name: project/workspace
+    host: remote-host-or-pod-ip
+    port: LISTENER_PORT
+    token: "LISTENER_TOKEN"   # empty string if not set
+```
+3. Test health check:
+```bash
+curl -H "Authorization: Bearer LISTENER_TOKEN" http://HOST:LISTENER_PORT/health
+```
 
-### Step 5: Verify Integration
+If the health check fails, show the error and help diagnose before finishing.
+
+### Step 6: Verify Integration
 
 The workspace should now be callable by the orchestrator. When the PO includes this workspace in an execution plan, the executor will call the remote listener instead of local `query(cwd=)`.
 
 ## Rules
 
-- One listener per workspace (each on a different port if on the same host)
-- Remote workspace must have CLAUDE.md for the PO to understand it
-- Ensure the remote listener stays running (consider systemd/supervisord)
+- ALWAYS ask for and confirm all environment variables in Step 3 before deploying.
+- ALWAYS run prerequisite checks in Step 4 before deploying.
+- One listener per workspace — each on a different port if on the same host.
+- Remote workspace must have CLAUDE.md for the PO to understand it.
+- Ensure the remote listener stays running (consider systemd/supervisord).
+- If LISTENER_TOKEN is set, always include the Authorization header in curl tests.

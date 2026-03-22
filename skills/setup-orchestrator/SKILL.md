@@ -26,6 +26,60 @@ Copy `orchestrator/` from SOURCE_DIR after setting it.
 
 ## Setup Flow
 
+### Phase 0: Environment Detection
+
+Before asking anything else, detect the environment and confirm with the user:
+
+**Step 0-1: Detect Python command**
+```bash
+# Try in order — use the first one that works
+for cmd in python3 python python3.12 python3.11 python3.10; do
+    if command -v "$cmd" &>/dev/null && "$cmd" -c "import sys; assert sys.version_info >= (3,10)" 2>/dev/null; then
+        echo "Found: $cmd ($($cmd --version))"
+        break
+    fi
+done
+```
+Show the detected command to the user and ask:
+> "Python command detected as `<cmd>`. Is this correct, or would you like to specify a different one (e.g. a virtualenv path like `/home/user/.venv/bin/python`)?"
+
+Store as `PYTHON_CMD`.
+
+**Step 0-2: Detect pip command**
+```bash
+# Derive from PYTHON_CMD first, then fall back
+for cmd in "${PYTHON_CMD} -m pip" pip3 pip; do
+    if $cmd --version &>/dev/null 2>&1; then
+        echo "Found: $cmd"
+        break
+    fi
+done
+```
+Show the detected command to the user and ask:
+> "pip command detected as `<cmd>`. Is this correct?"
+
+Store as `PIP_CMD`.
+
+**Step 0-3: Verify Claude Code CLI**
+```bash
+command -v claude && claude --version
+```
+If not found, stop and tell the user:
+> "Claude Code CLI (`claude`) was not found in PATH. Please install it first: https://docs.anthropic.com/en/docs/claude-code"
+
+**Step 0-4: Confirm before proceeding**
+Show a summary and ask the user to confirm:
+```
+Environment summary:
+  Python : <PYTHON_CMD> (<version>)
+  pip    : <PIP_CMD>
+  claude : <path> (<version>)
+
+Proceed with these settings? (yes / specify different values)
+```
+
+---
+
 ### Phase 1: Collect User Input
 
 Ask the user for ALL of the following at once:
@@ -57,6 +111,11 @@ cp SOURCE_DIR/templates/rules/*.md PROJECT_ROOT/.claude/rules/
 # Copy start script
 cp SOURCE_DIR/templates/start-orchestrator.sh.template PROJECT_ROOT/start-orchestrator.sh
 chmod +x PROJECT_ROOT/start-orchestrator.sh
+```
+
+After copying, replace the `PYTHON_CMD` default in `start-orchestrator.sh` with the confirmed value:
+```bash
+sed -i "s|PYTHON_CMD=\"\${PYTHON_CMD:-python3}\"|PYTHON_CMD=\"${PYTHON_CMD}\"|" PROJECT_ROOT/start-orchestrator.sh
 ```
 
 ### Phase 3: Generate orchestrator.yaml
@@ -92,7 +151,20 @@ For each confirmed workspace:
 - If CLAUDE.md exists but no "Orchestrator Integration" → append the section
 - Don't touch existing .claude/ directories
 
-### Phase 6: Channel Setup
+### Phase 6: Install Dependencies
+
+Use the confirmed `PIP_CMD`:
+
+```bash
+$PIP_CMD install claude-agent-sdk aiohttp pyyaml
+$PIP_CMD install slack-bolt slack-sdk        # if Slack
+# Telegram uses aiohttp (already installed)
+```
+
+If installation fails, show the exact error and ask the user:
+> "pip install failed. Would you like to try with `--user` flag, or specify a different pip command?"
+
+### Phase 7: Channel Setup
 
 #### Slack
 1. Check if ARCHIVE_PATH/slack/credentials exists
@@ -114,14 +186,7 @@ For each confirmed workspace:
 3. Collect: bot_token, optionally allowed_users (comma-separated)
 4. Create credential file
 
-Auto-install dependencies:
-```bash
-pip install claude-agent-sdk aiohttp pyyaml
-pip install slack-bolt slack-sdk        # if Slack
-# Telegram uses aiohttp (already installed)
-```
-
-### Phase 7: Test & Finish
+### Phase 8: Test & Finish
 
 Start orchestrator and test:
 ```bash
@@ -131,12 +196,15 @@ sleep 3
 # Telegram: check logs for bot username
 ```
 
+If the orchestrator fails to start, show the last 20 lines of the log and help the user diagnose.
+
 Show final summary with created files tree and next steps.
 
 ## Rules
 
+- ALWAYS complete Phase 0 before anything else. Never assume python3/pip3 work.
 - Preserve original code logic. Only change paths/config.
 - Preserve existing CLAUDE.md content. Only append.
 - Never commit ARCHIVE/. Ensure .gitignore has it.
-- Always confirm with user before proceeding.
-- If location unclear, ask user.
+- Always confirm with user before proceeding to next phase.
+- If any command fails, stop and show the error before continuing.
