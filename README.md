@@ -715,96 +715,91 @@ kill $(pgrep -f "orchestrator.main")
 
 ---
 
-## Scaling Beyond — Hierarchical Orchestration
+## Scaling Beyond — Fractal Orchestration
 
-A single PO manages one project tree. But what if your organization has dozens of independent systems — infrastructure, data pipelines, ML platforms, client services — each with its own orchestrator?
+A single PO manages one project tree. But what if your organization has dozens of independent systems — infrastructure, data pipelines, ML platforms, client services — each with its own project tree?
 
-Stack another layer. A **Meta-Orchestrator** sits above multiple PO instances, each running its own project tree. One channel connection, one message — the meta layer routes to the right PO, which routes to the right project, which delegates to the right workspace. The tree grows upward just as easily as it grows downward.
+Stack another orchestrator on top. And another one on top of that. The pattern is **fractal** — an orchestrator that manages orchestrators, which themselves manage orchestrators, down to POs that manage workspaces. Each layer only knows its direct children, just like microservices behind a hierarchy of API gateways.
 
 ```mermaid
 flowchart TB
-    USER["💬 Single channel connection<br/><small>Slack / Telegram / Teams / Others </small>"]
+    USER["💬 Single channel connection<br/><small>Slack / Telegram</small>"]
 
-    META["🧠 Meta-Orchestrator<br/><small>route across systems</small>"]
+    INF["⋮<br/><small>add more layers above — no limit</small>"]
 
-    USER --> META
+    ON1["🧠 Orchestrator · layer N+1<br/><small>routes across divisions</small>"]
 
-    subgraph SYS_A["System A · Infrastructure"]
-        PO_A["PO"]
-        subgraph PA_WS["workspaces"]
-            A1["terraform"]
-            A2["k8s-config"]
-            A3["monitoring"]
-        end
-        PO_A --> PA_WS
+    USER -.-> INF -.-> ON1
+
+    ON1 --> OA["🧠 Orchestrator<br/><small>Infrastructure</small>"]
+    ON1 --> OB["🧠 Orchestrator<br/><small>Product</small>"]
+    ON1 --> OC["🧠 Orchestrator<br/><small>ML Platform</small>"]
+
+    subgraph SA["Infrastructure"]
+        OA --> POA1["PO · networking"]
+        OA --> POA2["PO · compute"]
+        POA1 --> WA1["terraform"]
+        POA1 --> WA2["vpc-config"]
+        POA2 --> WA3["k8s"]
+        POA2 --> WA4["monitoring"]
     end
 
-    subgraph SYS_B["System B · Data Platform"]
-        PO_B["PO"]
-        subgraph PB_WS["workspaces"]
-            B1["etl-pipeline"]
-            B2["warehouse"]
-            B3["dashboards"]
-        end
-        PO_B --> PB_WS
+    subgraph SB["Product"]
+        OB --> POB1["PO · backend"]
+        OB --> POB2["PO · frontend"]
+        POB1 --> WB1["api"]
+        POB1 --> WB2["auth"]
+        POB2 --> WB3["web-ui"]
+        POB2 --> WB4["mobile"]
     end
 
-    subgraph SYS_C["System C · Product"]
-        PO_C["PO"]
-        subgraph PC_WS["workspaces"]
-            C1["backend"]
-            C2["frontend"]
-            C3["mobile"]
-        end
-        PO_C --> PC_WS
+    subgraph SC["ML Platform"]
+        OC --> POC1["PO · training"]
+        OC --> POC2["PO · serving"]
+        POC1 --> WC1["model-train"]
+        POC1 --> WC2["eval"]
+        POC2 --> WC3["inference"]
+        POC2 --> WC4["a-b-test"]
     end
-
-    subgraph SYS_D["System D · ML Platform"]
-        PO_D["PO"]
-        subgraph PD_WS["workspaces"]
-            D1["training"]
-            D2["serving"]
-            D3["eval"]
-        end
-        PO_D --> PD_WS
-    end
-
-    META --> PO_A
-    META --> PO_B
-    META --> PO_C
-    META --> PO_D
 
     style USER fill:#F1EFE8,stroke:#5F5E5A,color:#444441
-    style META fill:#FAEEDA,stroke:#854F0B,color:#633806
-    style SYS_A fill:#E1F5EE,stroke:#0F6E56
-    style SYS_B fill:#E6F1FB,stroke:#185FA5
-    style SYS_C fill:#EEEDFE,stroke:#534AB7
-    style SYS_D fill:#FAECE7,stroke:#993C1D
-    style PA_WS fill:#E1F5EE,stroke:#0F6E56
-    style PB_WS fill:#E6F1FB,stroke:#185FA5
-    style PC_WS fill:#EEEDFE,stroke:#534AB7
-    style PD_WS fill:#FAECE7,stroke:#993C1D
-    style PO_A fill:#9FE1CB,stroke:#0F6E56,color:#04342C
-    style PO_B fill:#B5D4F4,stroke:#185FA5,color:#042C53
-    style PO_C fill:#CECBF6,stroke:#534AB7,color:#26215C
-    style PO_D fill:#F5C4B3,stroke:#993C1D,color:#4A1B0C
-    style A1 fill:#9FE1CB,stroke:#0F6E56,color:#04342C
-    style A2 fill:#9FE1CB,stroke:#0F6E56,color:#04342C
-    style A3 fill:#9FE1CB,stroke:#0F6E56,color:#04342C
-    style B1 fill:#B5D4F4,stroke:#185FA5,color:#042C53
-    style B2 fill:#B5D4F4,stroke:#185FA5,color:#042C53
-    style B3 fill:#B5D4F4,stroke:#185FA5,color:#042C53
-    style C1 fill:#CECBF6,stroke:#534AB7,color:#26215C
-    style C2 fill:#CECBF6,stroke:#534AB7,color:#26215C
-    style C3 fill:#CECBF6,stroke:#534AB7,color:#26215C
-    style D1 fill:#F5C4B3,stroke:#993C1D,color:#4A1B0C
-    style D2 fill:#F5C4B3,stroke:#993C1D,color:#4A1B0C
-    style D3 fill:#F5C4B3,stroke:#993C1D,color:#4A1B0C
+    style INF fill:none,stroke:none,color:#888780
+    style ON1 fill:#FAEEDA,stroke:#854F0B,color:#633806
+
+    style OA fill:#EEEDFE,stroke:#534AB7,color:#3C3489
+    style OB fill:#EEEDFE,stroke:#534AB7,color:#3C3489
+    style OC fill:#EEEDFE,stroke:#534AB7,color:#3C3489
+
+    style SA fill:#E1F5EE,stroke:#0F6E56
+    style SB fill:#E6F1FB,stroke:#185FA5
+    style SC fill:#FAECE7,stroke:#993C1D
+
+    style POA1 fill:#9FE1CB,stroke:#0F6E56,color:#04342C
+    style POA2 fill:#9FE1CB,stroke:#0F6E56,color:#04342C
+    style POB1 fill:#B5D4F4,stroke:#185FA5,color:#042C53
+    style POB2 fill:#B5D4F4,stroke:#185FA5,color:#042C53
+    style POC1 fill:#F5C4B3,stroke:#993C1D,color:#4A1B0C
+    style POC2 fill:#F5C4B3,stroke:#993C1D,color:#4A1B0C
+
+    style WA1 fill:#9FE1CB,stroke:#0F6E56,color:#04342C
+    style WA2 fill:#9FE1CB,stroke:#0F6E56,color:#04342C
+    style WA3 fill:#9FE1CB,stroke:#0F6E56,color:#04342C
+    style WA4 fill:#9FE1CB,stroke:#0F6E56,color:#04342C
+    style WB1 fill:#B5D4F4,stroke:#185FA5,color:#042C53
+    style WB2 fill:#B5D4F4,stroke:#185FA5,color:#042C53
+    style WB3 fill:#B5D4F4,stroke:#185FA5,color:#042C53
+    style WB4 fill:#B5D4F4,stroke:#185FA5,color:#042C53
+    style WC1 fill:#F5C4B3,stroke:#993C1D,color:#4A1B0C
+    style WC2 fill:#F5C4B3,stroke:#993C1D,color:#4A1B0C
+    style WC3 fill:#F5C4B3,stroke:#993C1D,color:#4A1B0C
+    style WC4 fill:#F5C4B3,stroke:#993C1D,color:#4A1B0C
 ```
 
-This is the same principle that makes MAA scale: **each layer only knows about its direct children**. The Meta-Orchestrator doesn't know what workspaces exist inside System B — it only knows that System B's PO can handle data platform tasks. System B's PO doesn't know System A exists. Bounded context at every level, just like microservices behind an API gateway hierarchy.
+The recursion has no depth limit. One channel sends a message — the topmost orchestrator routes it to the right child orchestrator, which routes to the right PO, which delegates to the right workspace. Add a new division? Spin up an orchestrator for it and register it as a child of the layer above. Add an entirely new organizational tier (region, business unit, subsidiary)? Stack another orchestrator layer on top. The tree grows in any direction without touching existing nodes.
 
-> **One channel. One message. Any depth.** _"Retrain the recommendation model, update the serving endpoint, and roll it out to staging"_ — the meta layer routes to the ML Platform PO (training → serving) and the Infrastructure PO (k8s rollout), each decomposing their part into phased workspace tasks.
+This is the same bounded-context principle that makes MAA and MSA scale: **each layer only knows about its direct children**. A layer N+1 orchestrator doesn't know what workspaces exist inside the Product division — it only knows that the Product orchestrator can handle product-related tasks. The Product orchestrator doesn't know the Infrastructure division exists. No layer has a global view of the full tree, just like no microservice has a global view of the full system.
+
+> **One channel. One message. Any depth.** _"Retrain the recommendation model, update the serving endpoint, and roll it out to staging"_ — the top layer routes to the ML Platform orchestrator (training → serving) and the Infrastructure orchestrator (k8s rollout), each decomposing their part into phased workspace tasks. The tree can be 3 layers deep or 30 — the channel connection doesn't care.
 
 ---
 
