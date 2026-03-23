@@ -1,4 +1,10 @@
-# Claude-Code-Tunnels (Micro-Agent Architecture)
+# Claude-Code-Tunnels
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![Claude Code](https://img.shields.io/badge/Claude_Code-CLI-blueviolet.svg)](https://docs.anthropic.com/en/docs/claude-code)
+[![Slack](https://img.shields.io/badge/Channel-Slack-4A154B.svg?logo=slack)](https://api.slack.com/apps)
+[![Telegram](https://img.shields.io/badge/Channel-Telegram-26A5E4.svg?logo=telegram)](https://core.telegram.org/bots)
 
 **One channel connection. Unlimited projects. Every workspace runs in its own isolated session.**
 
@@ -715,11 +721,11 @@ kill $(pgrep -f "orchestrator.main")
 
 ---
 
-## Scaling Beyond — Fractal Orchestration
+## Scaling Beyond — Hierarchical Orchestration
 
-A single PO manages one project tree. But what if your organization has dozens of independent systems — infrastructure, data pipelines, ML platforms, client services — each with its own project tree?
+A single PO manages one project tree. But what if your organization has dozens of independent systems, spread across teams, divisions, even regions — each with its own orchestrator?
 
-Stack another orchestrator on top. And another one on top of that. The pattern is **fractal** — an orchestrator that manages orchestrators, which themselves manage orchestrators, down to POs that manage workspaces. Each layer only knows its direct children, just like microservices behind a hierarchy of API gateways.
+**Stack another layer.** And another. And another. The orchestrator pattern is recursive: any orchestrator can sit above other orchestrators. There is no depth limit. One channel connection at the top cascades through as many layers as your organization needs.
 
 ```mermaid
 flowchart TB
@@ -795,14 +801,66 @@ flowchart TB
     style WC4 fill:#F5C4B3,stroke:#993C1D,color:#4A1B0C
 ```
 
-The recursion has no depth limit. One channel sends a message — the topmost orchestrator routes it to the right child orchestrator, which routes to the right PO, which delegates to the right workspace. Add a new division? Spin up an orchestrator for it and register it as a child of the layer above. Add an entirely new organizational tier (region, business unit, subsidiary)? Stack another orchestrator layer on top. The tree grows in any direction without touching existing nodes.
+The pattern is fractal:
 
-This is the same bounded-context principle that makes MAA and MSA scale: **each layer only knows about its direct children**. A layer N+1 orchestrator doesn't know what workspaces exist inside the Product division — it only knows that the Product orchestrator can handle product-related tasks. The Product orchestrator doesn't know the Infrastructure division exists. No layer has a global view of the full tree, just like no microservice has a global view of the full system.
+```
+Channel ─→ Layer 0: Global Orchestrator
+              ├─→ Layer 1: Division Orchestrator (Korea)
+              │      ├─→ Layer 2: System PO (Product)
+              │      │      ├─→ workspace: backend
+              │      │      └─→ workspace: frontend
+              │      └─→ Layer 2: System PO (Infrastructure)
+              │             ├─→ workspace: k8s
+              │             └─→ workspace: monitoring
+              ├─→ Layer 1: Division Orchestrator (US)
+              │      ├─→ Layer 2: System PO (Data Platform)
+              │      └─→ Layer 2: System PO (ML Platform)
+              ├─→ Layer 1: Division Orchestrator (EU)
+              │      └─→ ...
+              └─→ ...any depth
+```
 
-> **One channel. One message. Any depth.** _"Retrain the recommendation model, update the serving endpoint, and roll it out to staging"_ — the top layer routes to the ML Platform orchestrator (training → serving) and the Infrastructure orchestrator (k8s rollout), each decomposing their part into phased workspace tasks. The tree can be 3 layers deep or 30 — the channel connection doesn't care.
+This is the same principle that makes MAA scale: **each layer only knows about its direct children**. The Global Orchestrator doesn't know what workspaces exist inside Korea's Product system — it only knows that the Korea Division Orchestrator handles Korean operations. Korea's Division Orchestrator doesn't know the US division exists. Bounded context at every level, just like microservices behind an API gateway hierarchy.
+
+> **One channel. One message. Any depth.** _"Retrain the recommendation model on the US ML platform, update the Korean product backend to consume the new API, and roll out both to their respective staging clusters"_ — the global layer fans out to US and Korea division orchestrators, each cascading down through their system POs to the right workspaces.
+
+---
+
+## Contributing
+
+Contributions are welcome! Here's how to get started:
+
+1. **Fork** the repository
+2. **Create** a feature branch: `git checkout -b feat/my-feature`
+3. **Commit** your changes: `git commit -m "feat: add my feature"`
+4. **Push** to the branch: `git push origin feat/my-feature`
+5. **Open** a Pull Request
+
+Please follow [Conventional Commits](https://www.conventionalcommits.org/) for commit messages. For major changes, open an issue first to discuss what you'd like to change.
+
+### Areas We'd Love Help With
+
+- New channel adapters (Discord, Microsoft Teams, etc.)
+- Remote workspace listeners for additional runtimes (Docker, ECS, etc.)
+- Test coverage and CI/CD pipeline
+- Documentation translations
+
+---
+
+## Roadmap
+
+- [ ] **Microsoft Teams channel adapter** — extend beyond Slack/Telegram
+- [ ] **Discord channel adapter** — extend beyond Slack/Telegram
+- [ ] **Web dashboard** — real-time task monitoring and workspace status UI
+- [ ] **Meta-Orchestrator** — hierarchical PO stacking for cross-system orchestration (see [Scaling Beyond](#scaling-beyond--hierarchical-orchestration))
+- [ ] **Workspace dependency graph** — auto-detect inter-workspace imports and infer phase ordering
+- [ ] **Rollback support** — automatic git-based rollback on workspace execution failure
+- [ ] **Plugin marketplace** — community-contributed channel adapters, direct handlers, and workspace templates
+- [ ] **Streaming results** — real-time progress updates sent back to the channel during execution
+- [ ] **Cost tracking** — per-task token usage and model cost breakdown in task logs
 
 ---
 
 ## License
 
-MIT
+MIT License
