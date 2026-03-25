@@ -87,18 +87,21 @@ def extract_json(text: str) -> dict:
 
 
 async def repair_json(raw_text: str, expected_keys: list[str] | None = None) -> dict | None:
-    """Last-resort: use haiku to extract JSON from a malformed response."""
+    """Last-resort: use haiku to extract JSON from a malformed response.
+
+    Returns parsed dict on success, None on failure.
+    """
     from claude_agent_sdk import query, ClaudeAgentOptions, AssistantMessage, ResultMessage
 
     keys_hint = ""
     if expected_keys:
-        keys_hint = f"\nExpected top-level keys: {', '.join(expected_keys)}"
+        keys_hint = f"\n예상되는 최상위 키: {', '.join(expected_keys)}"
 
     system = (
-        "You are a JSON extractor. Find and return the JSON object from the input text.\n"
-        "- If the text contains JSON, extract it exactly\n"
-        "- If JSON is malformed, infer intent and reconstruct valid JSON\n"
-        "- Output ONLY pure JSON. No explanation, code fences, or quotes\n"
+        "너는 JSON 추출기이다. 입력 텍스트에서 JSON 객체를 찾아서 반환해라.\n"
+        "- 텍스트에 JSON이 포함되어 있으면 그것을 정확히 추출해라\n"
+        "- JSON이 깨져있으면 의도를 추론하여 올바른 JSON으로 복원해라\n"
+        "- JSON만 출력해라. 설명, 코드펜스, 따옴표 없이 순수 JSON만 출력\n"
         f"{keys_hint}"
     )
 

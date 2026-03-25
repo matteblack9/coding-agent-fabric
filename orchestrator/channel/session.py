@@ -9,22 +9,25 @@ from enum import Enum
 
 logger = logging.getLogger(__name__)
 
-SESSION_TTL_SECONDS = 30 * 60  # 30 min idle → auto-expire
+SESSION_TTL_SECONDS = 30 * 60  # 30분 idle → 자동 만료
 
 
 class SessionState(Enum):
-    IDLE = "idle"
-    PENDING_CONFIRM = "pending_confirm"
-    EXECUTING = "executing"
-    AWAITING_FOLLOWUP = "awaiting_followup"
+    IDLE = "idle"                          # 대기 상태
+    PENDING_CONFIRM = "pending_confirm"    # 확인/취소 대기 중
+    PENDING_EXECUTION_CONFIRM = "pending_execution_confirm"  # 실행 계획 확인 대기
+    EXECUTING = "executing"                # 작업 실행 중
+    AWAITING_FOLLOWUP = "awaiting_followup"  # 작업 완료, 종료 확인 중
 
 
-DONE_KEYWORDS = {"done", "no", "nothing", "nope", "end", "quit", "exit"}
+FOLLOWUP_END_KEYWORDS = {
+    "네", "ㅇㅇ", "yes", "y", "ok", "끝", "done", "됐어", "응", "ㅇ", "확인",
+}
 
 
 @dataclass
 class Turn:
-    role: str  # "user" or "assistant"
+    role: str   # "user" or "assistant"
     text: str
     timestamp: float = field(default_factory=time.time)
 
@@ -35,6 +38,7 @@ class Session:
     turns: list[Turn] = field(default_factory=list)
     state: SessionState = SessionState.IDLE
     pending_request_id: str | None = None
+    pending_plan: dict | None = None
     created_at: float = field(default_factory=time.time)
     last_active: float = field(default_factory=time.time)
 
@@ -51,12 +55,13 @@ class Session:
         self.last_active = time.time()
 
     def to_context_string(self, max_turns: int = 20) -> str:
+        """Render recent turns as context for the refine model."""
         recent = self.turns[-max_turns:]
         if not recent:
             return ""
         lines = []
         for turn in recent:
-            prefix = "User" if turn.role == "user" else "Bot"
+            prefix = "사용자" if turn.role == "user" else "봇"
             lines.append(f"[{prefix}] {turn.text}")
         return "\n".join(lines)
 
@@ -64,6 +69,7 @@ class Session:
         self.turns.clear()
         self.state = SessionState.IDLE
         self.pending_request_id = None
+        self.pending_plan = None
         self.last_active = time.time()
 
 
@@ -92,6 +98,7 @@ class SessionStore:
         self._sessions.pop(source_key, None)
 
     def cleanup_expired(self) -> int:
+        """Remove all expired sessions. Returns count removed."""
         expired = [k for k, s in self._sessions.items() if s.is_expired]
         for k in expired:
             del self._sessions[k]

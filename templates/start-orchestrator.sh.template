@@ -4,17 +4,14 @@ cd "$(dirname "$0")"
 
 unset CLAUDECODE CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_ENABLE_TELEMETRY OTEL_EXPORTER_OTLP_ENDPOINT
 
-# PYTHON_CMD is set during /setup-orchestrator. Change if your environment differs.
-PYTHON_CMD="${PYTHON_CMD:-python3}"
-
 LOG_FILE="/tmp/orchestrator-$(date +%Y%m%d).log"
 
 if [[ "${1:-}" == "--fg" ]]; then
     echo "Starting orchestrator (foreground)..."
-    "$PYTHON_CMD" -m orchestrator.main 2>&1 | tee "$LOG_FILE"
+    python3 -m orchestrator.main 2>&1 | tee "$LOG_FILE"
 else
     echo "Starting orchestrator (background)..."
-    nohup "$PYTHON_CMD" -m orchestrator.main > "$LOG_FILE" 2>&1 &
+    nohup python3 -m orchestrator.main > "$LOG_FILE" 2>&1 &
     PID=$!
     sleep 2
     if kill -0 "$PID" 2>/dev/null; then

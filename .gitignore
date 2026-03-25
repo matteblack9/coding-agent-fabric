@@ -1,0 +1,13 @@
+ARCHIVE/
+.tasks/
+__pycache__/
+*.pyc
+*.pyo
+.env
+orchestrator.yaml
+/venv/
+*.egg-info/
+dist/
+build/
+.claude-listener.py
+/tmp/

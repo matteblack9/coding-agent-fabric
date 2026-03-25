@@ -23,7 +23,22 @@ logger = logging.getLogger(__name__)
 CREDENTIAL_PATH = ARCHIVE_PATH / "slack" / "credentials"
 
 # Slack user IDs allowed to interact with the bot. Empty set = allow all.
-ALLOWED_USERS: set[str] = set()
+# AirSPACE org members (oss.navercorp.com/AirSPACE)
+ALLOWED_USERS: set[str] = {
+    "U038D06B2S1",  # 김창회 (andres.chkim)
+    "U04K0QBBLG3",  # 신동걸 (donggeol.shin)
+    "U06SX9RS3BM",  # 심효진 (hyojin.sim)
+    "U038D88770V",  # 장현수 (hyunsoo.chang)
+    "U04L2EZCQRE",  # 황인중 (injung.hwang)
+    "U04K66BKPTQ",  # 김재훈 (jaehuni.kim)
+    "WJVD03Z6W",    # 한지운 (jeewoon.han)
+    "U04KCQ11CUA",  # 이정석 (jungseok.lee)
+    "U04KF88TE4C",  # 이준걸 (junguel.lee)
+    "U04K5QVP03Z",  # 김현우 (matte.black)
+    "U04JY83J2UF",  # 권기준 (standard.kwon)
+    "U0914DJJY8P",  # 김윤경 (yoonkyoung.kim)
+    "U04K9RNJHRT",  # 최인식 (mar.io)
+}
 
 
 @dataclass(frozen=True)
@@ -36,9 +51,8 @@ class SlackCredentials:
     bot_token: str = ""
 
 
-def load_credentials(path: Path | None = None) -> SlackCredentials:
-    p = path or CREDENTIAL_PATH
-    data = load_credential_file(p)
+def load_credentials(path: Path = CREDENTIAL_PATH) -> SlackCredentials:
+    data = load_credential_file(path)
     return SlackCredentials(
         app_id=data["app_id"],
         client_id=data["client_id"],
@@ -50,12 +64,15 @@ def load_credentials(path: Path | None = None) -> SlackCredentials:
 
 
 class SlackChannel(BaseChannel):
+    """Slack channel: receives messages via Socket Mode, sends via Web API."""
+
     channel_name = "slack"
 
     def __init__(self, confirm_gate: ConfirmGate) -> None:
         super().__init__(confirm_gate)
         creds = load_credentials()
         self._creds = creds
+
         self._web = AsyncWebClient(token=creds.bot_token)
         self._app = AsyncApp(
             token=creds.bot_token,
@@ -63,6 +80,7 @@ class SlackChannel(BaseChannel):
         )
         self._handler: AsyncSocketModeHandler | None = None
         self._bot_user_id: str | None = None
+
         self._register_events()
 
     def _register_events(self) -> None:
@@ -107,6 +125,8 @@ class SlackChannel(BaseChannel):
         }
         await self._handle_text(text_clean, channel_id, callback_info)
 
+    # --- Send ---
+
     async def _send(self, callback_info: Any, text: str) -> None:
         channel_id = callback_info["channel_id"]
         thread_ts = callback_info.get("thread_ts")
@@ -117,6 +137,11 @@ class SlackChannel(BaseChannel):
         if thread_ts:
             kwargs["thread_ts"] = thread_ts
         await self._web.chat_postMessage(**kwargs)
+
+    async def send_blocks(self, channel_id: str, blocks: list[dict], text: str = "") -> None:
+        await self._web.chat_postMessage(channel=channel_id, blocks=blocks, text=text)
+
+    # --- Lifecycle ---
 
     async def start(self) -> None:
         self._handler = AsyncSocketModeHandler(
