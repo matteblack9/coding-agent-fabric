@@ -95,13 +95,13 @@ async def repair_json(raw_text: str, expected_keys: list[str] | None = None) -> 
 
     keys_hint = ""
     if expected_keys:
-        keys_hint = f"\n예상되는 최상위 키: {', '.join(expected_keys)}"
+        keys_hint = f"\nExpected top-level keys: {', '.join(expected_keys)}"
 
     system = (
-        "너는 JSON 추출기이다. 입력 텍스트에서 JSON 객체를 찾아서 반환해라.\n"
-        "- 텍스트에 JSON이 포함되어 있으면 그것을 정확히 추출해라\n"
-        "- JSON이 깨져있으면 의도를 추론하여 올바른 JSON으로 복원해라\n"
-        "- JSON만 출력해라. 설명, 코드펜스, 따옴표 없이 순수 JSON만 출력\n"
+        "You are a JSON extractor. Find and return the JSON object from the input text.\n"
+        "- If the text contains valid JSON, extract it exactly.\n"
+        "- If the JSON is malformed, infer the intent and restore it as valid JSON.\n"
+        "- Output only the JSON. No explanation, no code fences, no quotes — pure JSON only.\n"
         f"{keys_hint}"
     )
 

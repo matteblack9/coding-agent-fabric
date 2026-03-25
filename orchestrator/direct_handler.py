@@ -177,7 +177,7 @@ async def handle_direct_request(user_message: str) -> str:
         if stderr_lines:
             logger.error("DirectHandler stderr:\n%s", "\n".join(stderr_lines))
         logger.error("DirectHandler query() failed: %s", exc)
-        return f"요청을 처리하는 중 오류가 발생했습니다: {type(exc).__name__}: {str(exc)[:300]}"
+        return f"An error occurred while processing your request: {type(exc).__name__}: {str(exc)[:300]}"
 
     if stderr_lines:
         for line in stderr_lines[-20:]:
@@ -185,7 +185,7 @@ async def handle_direct_request(user_message: str) -> str:
 
     answer = final_result or (collected_texts[-1] if collected_texts else "")
     if not answer:
-        return "요청을 처리했지만 결과를 생성하지 못했습니다. 다시 시도해주세요."
+        return "The request was processed but no result was generated. Please try again."
 
     logger.info("DirectHandler answer (first 300 chars): %s", answer[:300])
     return answer

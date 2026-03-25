@@ -1,41 +1,41 @@
 ---
 name: setup-orchestrator
-description: "Claude-Code-Tunnels(Project Orchestrator) 설치 스킬. 현재 프로젝트 디렉토리에 PO를 설치하고 workspace 인식, 메신저 채널 연동까지 한번에 수행. /claude-code-tunnels:setup-orchestrator 로 실행."
+description: "Skill for installing Claude-Code-Tunnels (Project Orchestrator). Installs the PO into the current project directory, registers workspaces, and connects messenger channels — all in one run. Execute with /claude-code-tunnels:setup-orchestrator."
 ---
 
 # Claude-Code-Tunnels Setup
 
-Claude-Code-Tunnels (Project Orchestrator)를 사용자의 프로젝트 디렉토리에 설치한다.
-PO가 하위 프로젝트/workspace를 인식하고 `claude-agent-sdk query(cwd=workspace/)` 로 작업을 위임하는 구조.
+Installs Claude-Code-Tunnels (Project Orchestrator) into the user's project directory.
+The PO discovers sub-projects/workspaces and delegates tasks via `claude-agent-sdk query(cwd=workspace/)`.
 
 ## Plugin Source
 
-이 플러그인 디렉토리에 orchestrator 코드와 템플릿이 포함되어 있다.
-`PLUGIN_DIR` = 이 SKILL.md의 2단계 상위 디렉토리 (플러그인 루트).
+This plugin directory contains the orchestrator code and templates.
+`PLUGIN_DIR` = the directory two levels above this SKILL.md (the plugin root).
 
-포함 파일: `orchestrator/`, `templates/`, `orchestrator.yaml`, `install.sh`, `requirements.txt`
+Included files: `orchestrator/`, `templates/`, `orchestrator.yaml`, `install.sh`, `requirements.txt`
 
 ## Rules
 
-- **사용자에게 묻지 않고 절대 진행하지 않는다** — 모든 환경변수/경로는 반드시 사용자 확인을 받는다
-- 단, **자동 탐지된 값은 선택지로 먼저 제시**한다 — 사용자는 번호만 치면 된다
-- 원본 코드 로직 수정 금지. 경로/설정만 변경
-- 기존 CLAUDE.md 내용 보존. 필요 시 append만
-- ARCHIVE/ 디렉토리는 절대 git에 커밋하지 않음
+- **Never proceed without asking the user** — all environment variables and paths must be confirmed by the user
+- However, **auto-detected values are presented as numbered choices first** — the user only needs to enter a number
+- Do not modify the original code logic. Only change paths and configuration
+- Preserve existing CLAUDE.md content. Append only when necessary
+- The ARCHIVE/ directory must never be committed to git
 
 ---
 
-## Phase 0: Environment Preflight (CRITICAL — 반드시 먼저 실행)
+## Phase 0: Environment Preflight (CRITICAL — must run first)
 
-Orchestrator는 Python 런타임, pip, Claude SDK에 의존한다.
-시스템마다 설치 경로와 버전이 다르므로, 설치 전에 현재 환경이 요구사항을 충족하는지 점검한다.
-**하나라도 실패하면 → 해결될 때까지 다음 단계로 진행하지 않는다.**
+The Orchestrator depends on the Python runtime, pip, and the Claude SDK.
+Installation paths and versions vary by system, so the current environment must be verified against requirements before installation.
+**If any check fails → do not proceed to the next step until it is resolved.**
 
-### 0-1. Python 런타임
+### 0-1. Python Runtime
 
-**왜 필요한가**: orchestrator 전체가 Python으로 작성되어 있고, `claude-agent-sdk`가 Python 3.10+ 을 요구한다.
+**Why it is needed**: the entire orchestrator is written in Python, and `claude-agent-sdk` requires Python 3.10+.
 
-시스템에서 사용 가능한 Python을 자동 탐지한다:
+Auto-detect available Python installations on the system:
 
 ```bash
 candidates=()
@@ -49,26 +49,26 @@ for cmd in python3 python python3.12 python3.11 python3.10; do
 done
 ```
 
-탐지 결과를 **번호 선택지**로 제시:
+Present the detected results as **numbered choices**:
 
 ```
-Python 3.10+ 런타임을 선택해주세요.
-Orchestrator 코드와 claude-agent-sdk가 이 Python으로 실행됩니다.
+Select a Python 3.10+ runtime.
+The Orchestrator code and claude-agent-sdk will run using this Python.
 
-  [1] /usr/bin/python3       (python3 3.11.5)   ← 탐지됨
-  [2] /usr/local/bin/python3.12 (python3.12 3.12.1) ← 탐지됨
-  [3] 직접 입력
+  [1] /usr/bin/python3       (python3 3.11.5)   <- detected
+  [2] /usr/local/bin/python3.12 (python3.12 3.12.1) <- detected
+  [3] Enter manually
 
-번호 또는 경로:
+Number or path:
 ```
 
-- 사용자가 `1` 또는 `2` → 해당 경로를 `PYTHON_CMD`로 설정
-- 사용자가 `3` 또는 직접 경로 입력 → 해당 경로의 버전을 확인 후 사용
-- 탐지 결과가 0개 → "Python 3.10+ 을 찾지 못했습니다. 직접 경로를 입력해주세요."
+- User enters `1` or `2` → set that path as `PYTHON_CMD`
+- User enters `3` or a direct path → verify that path's version and use it
+- Zero candidates detected → "Could not find Python 3.10+. Please enter the path manually."
 
 ### 0-2. pip
 
-**왜 필요한가**: claude-agent-sdk, aiohttp, pyyaml 등 Python 패키지를 설치/확인할 때 사용한다.
+**Why it is needed**: used to install and verify Python packages such as claude-agent-sdk, aiohttp, and pyyaml.
 
 ```bash
 pip_candidates=()
@@ -80,41 +80,41 @@ done
 ```
 
 ```
-pip를 선택해주세요. 의존성 패키지 설치에 사용됩니다.
+Select pip. It will be used to install dependency packages.
 
-  [1] /usr/bin/python3 -m pip  (pip 23.2.1)   ← 탐지됨
-  [2] 직접 입력
+  [1] /usr/bin/python3 -m pip  (pip 23.2.1)   <- detected
+  [2] Enter manually
 
-번호 또는 경로:
+Number or path:
 ```
 
 ### 0-3. Claude Code CLI
 
-**왜 필요한가**: `claude-agent-sdk`가 내부적으로 `claude` CLI 바이너리를 호출한다. CLI가 없으면 `query()` 호출이 실패한다.
+**Why it is needed**: `claude-agent-sdk` internally calls the `claude` CLI binary. Without it, `query()` calls will fail.
 
 ```bash
 claude_path=$(command -v claude 2>/dev/null)
 ```
 
-- 찾음 → "Claude CLI 탐지됨: `$claude_path` (`claude --version`). OK?"
-- 못 찾음 →
+- Found → "Claude CLI detected: `$claude_path` (`claude --version`). OK?"
+- Not found →
   ```
-  Claude CLI를 찾지 못했습니다.
-  claude-agent-sdk의 query()는 내부적으로 claude 바이너리를 호출하므로 필수입니다.
+  Claude CLI not found.
+  The claude-agent-sdk query() internally calls the claude binary, so it is required.
 
-    [1] 경로를 직접 입력 (예: ~/.npm/bin/claude)
-    [2] 지금 설치 (npm install -g @anthropic-ai/claude-code)
-    [3] 나중에 설치 (설치 없이 계속 — 실행 시 에러 발생 가능)
+    [1] Enter path manually (e.g. ~/.npm/bin/claude)
+    [2] Install now (npm install -g @anthropic-ai/claude-code)
+    [3] Install later (continue without installing — errors may occur at runtime)
 
-  번호:
+  Number:
   ```
 
-### 0-4. 필수 Python 패키지
+### 0-4. Required Python Packages
 
-**왜 필요한가**: 각 패키지의 역할이 다르다.
-- `claude-agent-sdk`: Claude Code를 Python에서 프로그래밍 방식으로 호출하는 핵심 라이브러리
-- `aiohttp`: 채널 어댑터(Telegram polling)와 remote listener가 비동기 HTTP를 처리하는 데 사용
-- `pyyaml`: orchestrator.yaml 설정 파일 파싱
+**Why they are needed**: each package serves a distinct role.
+- `claude-agent-sdk`: the core library for invoking Claude Code programmatically from Python
+- `aiohttp`: used by channel adapters (Telegram polling) and the remote listener to handle async HTTP
+- `pyyaml`: parses the orchestrator.yaml configuration file
 
 ```bash
 declare -A pkg_status
@@ -127,21 +127,21 @@ for pkg in claude_agent_sdk aiohttp yaml; do
 done
 ```
 
-미설치 패키지가 있으면:
+If any packages are missing:
 ```
-다음 패키지가 설치되어 있지 않습니다:
-  - claude-agent-sdk (Claude SDK — 없으면 orchestrator가 실행 불가)
-  - aiohttp          (비동기 HTTP — 없으면 채널/리모트 연결 불가)
+The following packages are not installed:
+  - claude-agent-sdk (Claude SDK — orchestrator cannot run without it)
+  - aiohttp          (async HTTP — channel/remote connections will fail without it)
 
-설치 명령: $PIP_CMD install claude-agent-sdk aiohttp pyyaml
+Install command: $PIP_CMD install claude-agent-sdk aiohttp pyyaml
 
-  [1] 지금 설치
-  [2] 건너뛰기 (나중에 직접 설치)
+  [1] Install now
+  [2] Skip (install manually later)
 
-번호:
+Number:
 ```
 
-### Preflight 결과 보고
+### Preflight Results
 
 ```
 Environment Preflight Results
@@ -153,104 +153,104 @@ Environment Preflight Results
   aiohttp:           3.9.1                             ✓
   pyyaml:            6.0.1                             ✓
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-모든 항목을 통과했습니다. 설정을 시작할까요? (yes/no)
+All checks passed. Proceed with setup? (yes/no)
 ```
 
 ---
 
-## Phase 1: 사용자 입력 수집
+## Phase 1: Collect User Input
 
-환경 점검이 끝났으니, 설치 위치와 채널을 결정한다.
-가능한 값을 자동 탐지하여 **선택지로 제시**한다. 사용자는 번호만 입력하면 된다.
+Now that the environment check is complete, determine the installation location and channels.
+Auto-detect possible values and **present them as numbered choices**. The user only needs to enter a number.
 
 ### 1-1. PROJECT_ROOT
 
-현재 디렉토리와 상위 디렉토리를 후보로 제시:
+Present the current directory and its parent as candidates:
 
 ```bash
 cwd=$(pwd)
 parent=$(dirname "$cwd")
 
-# 하위 디렉토리가 2개 이상인 경로를 프로젝트 루트 후보로
+# Treat paths with 2 or more subdirectories as project root candidates
 candidates=()
 for d in "$cwd" "$parent"; do
   subdir_count=$(find "$d" -maxdepth 1 -mindepth 1 -type d ! -name '.*' | wc -l)
   if [ "$subdir_count" -ge 1 ]; then
-    candidates+=("$d  (하위 ${subdir_count}개 디렉토리)")
+    candidates+=("$d  (${subdir_count} subdirectories)")
   fi
 done
 ```
 
 ```
-프로젝트 루트 디렉토리를 선택해주세요.
-하위 프로젝트/workspace가 이 안에 들어있어야 합니다.
+Select the project root directory.
+Sub-projects/workspaces must reside inside this directory.
 
-  [1] /home/user/my-projects  (하위 4개 디렉토리)  ← 현재 위치
-  [2] /home/user              (하위 7개 디렉토리)  ← 상위
-  [3] 직접 입력
+  [1] /home/user/my-projects  (4 subdirectories)  <- current location
+  [2] /home/user              (7 subdirectories)  <- parent
+  [3] Enter manually
 
-번호 또는 절대경로:
+Number or absolute path:
 ```
 
-검증: `test -d` && `test -w`
+Validation: `test -d` && `test -w`
 
 ### 1-2. ARCHIVE_PATH
 
 ```
-Credential 저장 경로를 선택해주세요.
-Slack/Telegram 토큰 등이 이 디렉토리에 저장됩니다. (git 제외)
+Select the credential storage path.
+Slack/Telegram tokens and similar secrets will be stored here. (excluded from git)
 
-  [1] $PROJECT_ROOT/ARCHIVE   ← 기본 권장
-  [2] 직접 입력
+  [1] $PROJECT_ROOT/ARCHIVE   <- recommended default
+  [2] Enter manually
 
-번호 또는 절대경로:
+Number or absolute path:
 ```
 
 ### 1-3. CHANNELS
 
 ```
-연결할 메신저 채널을 선택해주세요.
-Orchestrator가 이 채널에서 메시지를 받아 작업을 수행합니다.
-복수 선택 가능 — 번호를 쉼표로 구분 (예: 1,3)
+Select the messenger channels to connect.
+The Orchestrator will receive messages from these channels and execute tasks.
+Multiple selections allowed — separate numbers with commas (e.g. 1,3)
 
-  [1] slack      — Slack Socket Mode (공인IP 불필요)
-  [2] telegram   — Telegram Bot long polling (공인IP 불필요)
-  [3] 나중에 설정 (skip)
+  [1] slack      — Slack Socket Mode (no public IP required)
+  [2] telegram   — Telegram Bot long polling (no public IP required)
+  [3] Configure later (skip)
 
-번호:
+Number:
 ```
 
-### 입력값 검증 (반드시 수행)
+### Input Validation (mandatory)
 
 ```bash
-test -d "$PROJECT_ROOT" || echo "ERROR: $PROJECT_ROOT 존재하지 않습니다."
-test -w "$PROJECT_ROOT" || echo "ERROR: $PROJECT_ROOT 쓰기 권한 없습니다."
-mkdir -p "$ARCHIVE_PATH" 2>/dev/null || echo "ERROR: $ARCHIVE_PATH 생성 실패."
+test -d "$PROJECT_ROOT" || echo "ERROR: $PROJECT_ROOT does not exist."
+test -w "$PROJECT_ROOT" || echo "ERROR: $PROJECT_ROOT is not writable."
+mkdir -p "$ARCHIVE_PATH" 2>/dev/null || echo "ERROR: Failed to create $ARCHIVE_PATH."
 ```
 
-**검증 실패 시 → 해당 항목만 다시 선택지 제시. 자동으로 대체값을 정하지 않는다.**
+**If validation fails → re-present choices for that item only. Do not automatically substitute a value.**
 
 ---
 
-## Phase 2: Orchestrator 코드 복사
+## Phase 2: Copy Orchestrator Code
 
-사용자에게 복사할 파일 목록을 보여주고 확인받는다:
+Show the list of files to be copied and confirm with the user:
 
 ```bash
-PLUGIN_DIR="<이 플러그인 루트 경로>"
+PLUGIN_DIR="<plugin root path>"
 
-echo "다음 파일들을 $PROJECT_ROOT 에 복사합니다:"
-echo "  orchestrator/    ← Python 패키지 (PO, executor, router, channels)"
-echo "  .claude/rules/   ← delegation, task-log, notification rules"
-echo "  start-orchestrator.sh ← 시작 스크립트 ($PYTHON_CMD 사용)"
-echo "진행할까요? (yes/no)"
+echo "The following files will be copied to $PROJECT_ROOT:"
+echo "  orchestrator/    <- Python package (PO, executor, router, channels)"
+echo "  .claude/rules/   <- delegation, task-log, notification rules"
+echo "  start-orchestrator.sh <- startup script (uses $PYTHON_CMD)"
+echo "Proceed? (yes/no)"
 
-# 사용자 확인 후:
+# After user confirmation:
 cp -r $PLUGIN_DIR/orchestrator/ $PROJECT_ROOT/orchestrator/
 mkdir -p $PROJECT_ROOT/.claude/rules/
 cp $PLUGIN_DIR/templates/rules/*.md $PROJECT_ROOT/.claude/rules/
 
-# start-orchestrator.sh — PYTHON_CMD 반영
+# start-orchestrator.sh — apply PYTHON_CMD
 sed "s|python3|$PYTHON_CMD|g" $PLUGIN_DIR/templates/start-orchestrator.sh.template \
   > $PROJECT_ROOT/start-orchestrator.sh
 chmod +x $PROJECT_ROOT/start-orchestrator.sh
@@ -258,9 +258,9 @@ chmod +x $PROJECT_ROOT/start-orchestrator.sh
 
 ---
 
-## Phase 3: orchestrator.yaml 생성
+## Phase 3: Generate orchestrator.yaml
 
-사용자 입력값으로 생성 후, 내용을 보여주고 확인:
+Generate using the collected user inputs, then display the content and confirm:
 
 ```yaml
 root: $PROJECT_ROOT
@@ -275,72 +275,72 @@ remote_workspaces: []
 
 ---
 
-## Phase 4: CLAUDE.md 설정
+## Phase 4: CLAUDE.md Configuration
 
-- 없으면 → `$PLUGIN_DIR/templates/CLAUDE.md.template` 기반 생성
-- 있는데 Orchestrator 언급 없으면 → orchestrator 섹션 append
-- 이미 있으면 → skip
+- Does not exist → generate from `$PLUGIN_DIR/templates/CLAUDE.md.template`
+- Exists but has no Orchestrator mention → append the orchestrator section
+- Already contains Orchestrator content → skip
 
 ---
 
-## Phase 5: Workspace 탐색
+## Phase 5: Workspace Discovery
 
-하위 디렉토리를 자동 탐지하여 체크리스트로 제시:
+Auto-detect subdirectories and present as a checklist:
 
 ```bash
-ls $PROJECT_ROOT/   # 제외: orchestrator/, ARCHIVE/, .tasks/, .claude/, .git/, 숨김폴더
+ls $PROJECT_ROOT/   # exclude: orchestrator/, ARCHIVE/, .tasks/, .claude/, .git/, hidden folders
 ```
 
 ```
-발견된 하위 디렉토리입니다.
-Workspace로 등록할 항목을 선택해주세요 (번호를 쉼표로 구분, 전체: all):
+The following subdirectories were found.
+Select the ones to register as workspaces (separate numbers with commas, or enter all):
 
-  [1] project-a/        (CLAUDE.md 있음)
-  [2] project-b/        (CLAUDE.md 있음)
-  [3] project-c/        (CLAUDE.md 없음 — 기본 생성됨)
-  [4] data-scripts/     (CLAUDE.md 없음 — 기본 생성됨)
+  [1] project-a/        (CLAUDE.md present)
+  [2] project-b/        (CLAUDE.md present)
+  [3] project-c/        (no CLAUDE.md — a default will be generated)
+  [4] data-scripts/     (no CLAUDE.md — a default will be generated)
 
-번호 (예: 1,2,3 또는 all):
+Number (e.g. 1,2,3 or all):
 ```
 
-CLAUDE.md가 없는 workspace는 기본 생성 여부를 안내한다.
+Workspaces without a CLAUDE.md will be informed that a default one will be created.
 
 ---
 
-## Phase 6: 채널 설정
+## Phase 6: Channel Configuration
 
-선택된 채널에 따라 해당 채널 skill을 순서대로 실행:
+Run the corresponding channel skill in sequence based on the selected channels:
 - Slack → `/claude-code-tunnels:connect-slack`
 - Telegram → `/claude-code-tunnels:connect-telegram`
 
-의존성 설치 (사용자에게 목록 보여주고 확인):
+Dependency installation (show list to user and confirm):
 ```
-설치할 패키지:
-  기본:  claude-agent-sdk aiohttp pyyaml
+Packages to install:
+  Base:  claude-agent-sdk aiohttp pyyaml
   Slack: slack-bolt slack-sdk
 
-명령어: $PIP_CMD install claude-agent-sdk aiohttp pyyaml slack-bolt slack-sdk
+Command: $PIP_CMD install claude-agent-sdk aiohttp pyyaml slack-bolt slack-sdk
 
-  [1] 설치 진행
-  [2] 건너뛰기 (직접 설치)
+  [1] Install now
+  [2] Skip (install manually)
 
-번호:
+Number:
 ```
 
 ---
 
-## Phase 7: 테스트 & 완료
+## Phase 7: Test & Complete
 
 ```bash
 cd $PROJECT_ROOT && ./start-orchestrator.sh --fg &
 sleep 3
-# Slack: 로그에서 "Socket Mode" 확인
-# Telegram: 로그에서 bot username 확인
+# Slack: confirm "Socket Mode" in logs
+# Telegram: confirm bot username in logs
 ```
 
-**테스트 실패 시 → 에러 메시지와 함께 사용자에게 상황 설명. 자동 재시도하지 않는다.**
+**If the test fails → explain the situation to the user with the error message. Do not retry automatically.**
 
-최종 요약:
+Final summary:
 ```
 Setup Complete!
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -350,48 +350,48 @@ Setup Complete!
   Channels:      slack ✓, telegram ✗
   Workspaces:    project-a, project-b, project-c
 
-생성된 파일:
-  orchestrator/          ← Python 패키지
-  orchestrator.yaml      ← 설정 파일
-  start-orchestrator.sh  ← 시작 스크립트
-  .claude/rules/         ← delegation rules
-  CLAUDE.md              ← PO 설명
+Files created:
+  orchestrator/          <- Python package
+  orchestrator.yaml      <- configuration file
+  start-orchestrator.sh  <- startup script
+  .claude/rules/         <- delegation rules
+  CLAUDE.md              <- PO description
 
-다음 단계:
-  ./start-orchestrator.sh              ← 백그라운드 시작
-  ./start-orchestrator.sh --fg         ← 포그라운드 (디버그)
+Next steps:
+  ./start-orchestrator.sh              <- start in background
+  ./start-orchestrator.sh --fg         <- foreground (debug)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 ## Credential File Format
 
-모든 credential 파일은 동일한 형식:
+All credential files share the same format:
 ```
 key : value
 ```
-콜론 양쪽에 반드시 공백. bot_token에 콜론이 포함되어도 첫 ` : ` 기준으로만 split.
+Spaces are required on both sides of the colon. Even if bot_token contains a colon, only the first ` : ` is used as the split point.
 
-## 파일 구조 (설치 후)
+## File Structure (after installation)
 
 ```
 PROJECT_ROOT/
-├── orchestrator/          ← PO, executor, router, channels
+├── orchestrator/          <- PO, executor, router, channels
 │   ├── __init__.py
 │   ├── main.py
 │   ├── server.py
 │   ├── po.py
 │   ├── executor.py
 │   ├── router.py
-│   ├── channel/           ← Slack, Telegram adapters
-│   └── remote/            ← listener, deploy helpers
-├── orchestrator.yaml      ← 설정 파일
-├── start-orchestrator.sh  ← 시작 스크립트
-├── CLAUDE.md              ← PO용 프로젝트 설명
-├── .claude/rules/         ← delegation, task-log, notification rules
-├── ARCHIVE/               ← credentials (git 제외)
-├── .tasks/                ← 작업 이력 로그
-├── project-a/             ← workspace
+│   ├── channel/           <- Slack, Telegram adapters
+│   └── remote/            <- listener, deploy helpers
+├── orchestrator.yaml      <- configuration file
+├── start-orchestrator.sh  <- startup script
+├── CLAUDE.md              <- project description for the PO
+├── .claude/rules/         <- delegation, task-log, notification rules
+├── ARCHIVE/               <- credentials (excluded from git)
+├── .tasks/                <- task history logs
+├── project-a/             <- workspace
 │   └── CLAUDE.md
-└── project-b/             ← workspace
+└── project-b/             <- workspace
     └── CLAUDE.md
 ```

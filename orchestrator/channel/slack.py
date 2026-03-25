@@ -25,19 +25,19 @@ CREDENTIAL_PATH = ARCHIVE_PATH / "slack" / "credentials"
 # Slack user IDs allowed to interact with the bot. Empty set = allow all.
 # AirSPACE org members (oss.navercorp.com/AirSPACE)
 ALLOWED_USERS: set[str] = {
-    "U038D06B2S1",  # 김창회 (andres.chkim)
-    "U04K0QBBLG3",  # 신동걸 (donggeol.shin)
-    "U06SX9RS3BM",  # 심효진 (hyojin.sim)
-    "U038D88770V",  # 장현수 (hyunsoo.chang)
-    "U04L2EZCQRE",  # 황인중 (injung.hwang)
-    "U04K66BKPTQ",  # 김재훈 (jaehuni.kim)
-    "WJVD03Z6W",    # 한지운 (jeewoon.han)
-    "U04KCQ11CUA",  # 이정석 (jungseok.lee)
-    "U04KF88TE4C",  # 이준걸 (junguel.lee)
-    "U04K5QVP03Z",  # 김현우 (matte.black)
-    "U04JY83J2UF",  # 권기준 (standard.kwon)
-    "U0914DJJY8P",  # 김윤경 (yoonkyoung.kim)
-    "U04K9RNJHRT",  # 최인식 (mar.io)
+    "U038D06B2S1",  # andres.chkim
+    "U04K0QBBLG3",  # donggeol.shin
+    "U06SX9RS3BM",  # hyojin.sim
+    "U038D88770V",  # hyunsoo.chang
+    "U04L2EZCQRE",  # injung.hwang
+    "U04K66BKPTQ",  # jaehuni.kim
+    "WJVD03Z6W",    # jeewoon.han
+    "U04KCQ11CUA",  # jungseok.lee
+    "U04KF88TE4C",  # junguel.lee
+    "U04K5QVP03Z",  # matte.black
+    "U04JY83J2UF",  # standard.kwon
+    "U0914DJJY8P",  # yoonkyoung.kim
+    "U04K9RNJHRT",  # mar.io
 }
 
 

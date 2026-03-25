@@ -60,9 +60,9 @@ async def _handle_incoming(request: web.Request) -> web.Response:
     )
 
     confirm_msg = (
-        f"이렇게 이해했는데 맞나요?\n"
+        f"I understood your request as follows. Is this correct?\n"
         f"> {message}\n\n"
-        f"진행하려면 이 request_id로 /confirm 호출: {request_id}"
+        f"To proceed, call /confirm with this request_id: {request_id}"
     )
 
     return web.json_response({

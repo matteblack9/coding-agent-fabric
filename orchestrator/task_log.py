@@ -90,9 +90,9 @@ async def write_task_log(
     for i, phase_workspaces in enumerate(phases, 1):
         ws_str = ", ".join(phase_workspaces)
         if i == 1:
-            lines.append(f"- Phase {i}: {ws_str} (독립)")
+            lines.append(f"- Phase {i}: {ws_str} (independent)")
         else:
-            lines.append(f"- Phase {i}: {ws_str} (이전 phase 결과 반영)")
+            lines.append(f"- Phase {i}: {ws_str} (depends on previous phase result)")
 
     lines.extend(["", "## Results"])
 
@@ -109,7 +109,7 @@ async def write_task_log(
         if summary:
             lines.append(f"\n#### Summary\n{summary}")
         else:
-            lines.append("\n#### Summary\n(결과 없음)")
+            lines.append("\n#### Summary\n(no results)")
 
         downstream = result.get("downstream_context", "")
         if downstream:

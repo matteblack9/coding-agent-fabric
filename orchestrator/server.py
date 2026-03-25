@@ -42,8 +42,8 @@ def get_channel(name: str) -> Any | None:
 @dataclass
 class PendingRequest:
     request_id: str
-    message: str          # refined message (PO에 전달)
-    raw_message: str      # 원본 사용자 메시지 (로깅용)
+    message: str          # refined message (forwarded to PO)
+    raw_message: str      # original user message (for logging)
     channel: str
     callback_info: dict
 
@@ -116,19 +116,19 @@ def format_results(
     task_id: str = "",
 ) -> str:
     """Format execution results for channel delivery."""
-    # raw_message에서 현재 요청만 추출
+    # Extract only the current request from raw_message
     clean_request = original_request
-    if "[현재 요청]" in clean_request:
-        clean_request = clean_request.split("[현재 요청]", 1)[1].strip()
-    elif "[이전 대화 맥락]" in clean_request:
-        clean_request = clean_request.split("[이전 대화 맥락]", 1)[0].strip() or clean_request
+    if "[Current Request]" in clean_request:
+        clean_request = clean_request.split("[Current Request]", 1)[1].strip()
+    elif "[Previous Context]" in clean_request:
+        clean_request = clean_request.split("[Previous Context]", 1)[0].strip() or clean_request
 
     sections: list[str] = []
 
-    # --- 요청 사항 ---
-    sections.append(f":speech_balloon: *요청 사항*\n{clean_request}")
+    # --- Request ---
+    sections.append(f":speech_balloon: *Request*\n{clean_request}")
 
-    # --- 작업 결과 ---
+    # --- Results ---
     result_lines: list[str] = []
 
     for project, data in project_results.items():
@@ -143,7 +143,7 @@ def format_results(
             result_lines.append(f"*{project}*")
 
         if not phases and not results:
-            result_lines.append(f"[{project}] 실행할 phase가 없습니다.")
+            result_lines.append(f"[{project}] No phases to execute.")
             continue
 
         for i, phase_workspaces in enumerate(phases, 1):
@@ -153,20 +153,20 @@ def format_results(
                 result = results.get(ws, {})
                 error = result.get("error")
                 test_result = "fail" if error else result.get("test_result", "skip")
-                summary = result.get("summary") or "결과 없음"
+                summary = result.get("summary") or "No results"
                 changed = result.get("changed_files", [])
 
                 result_lines.append(f"[{test_result}] *{ws}*")
                 result_lines.append(summary)
                 if changed:
                     changed_str = ", ".join(f"`{f}`" for f in changed)
-                    result_lines.append(f"변경 파일: {changed_str}")
+                    result_lines.append(f"Changed files: {changed_str}")
                 if error:
                     err_preview = str(error)[:200]
                     result_lines.append(f"```{err_preview}```")
 
     sections.append(
-        f":clipboard: *작업 결과*\n" + "\n".join(result_lines)
+        f":clipboard: *Results*\n" + "\n".join(result_lines)
     )
 
     result_text = "\n\n─────────────────────────\n\n".join(sections)
@@ -208,7 +208,7 @@ async def _run_single_project(
     request_id: str | None = None,
 ) -> dict:
     project = plan["project"]
-    task_id = request_id or plan["task_id"]  # 채널 request_id 우선
+    task_id = request_id or plan["task_id"]  # channel request_id takes priority
     task_label = plan["task_label"]
     phases = plan["phases"]
     tasks = plan["task_per_workspace"]
@@ -312,7 +312,7 @@ async def _plan_and_run_project(
         )
         return {
             "status": "clarification_needed",
-            "message": "요청을 처리할 실행 계획을 생성하지 못했습니다. 좀 더 구체적으로 요청해주세요.",
+            "message": "Could not generate an execution plan for your request. Please provide more specific details.",
         }
 
     return await _run_single_project(
@@ -379,7 +379,7 @@ async def plan_request(
             )
             return {
                 "status": "clarification_needed",
-                "message": "실행 계획을 생성하지 못했습니다. 좀 더 구체적으로 요청해주세요.",
+                "message": "Could not generate an execution plan. Please provide more specific details.",
             }
 
         project_plans.append(plan)

@@ -1,87 +1,88 @@
 # Orchestrator
 
-Claude Agent SDK + `cwd` 기반 Task Delegation 아키텍처.
+Claude Agent SDK + `cwd`-based Task Delegation Architecture.
 
-## 아키텍처 개요
+## Architecture Overview
 
-### Agent SDK + cwd)
+### Agent SDK + cwd
 ```
-메신저 → Python 미들웨어 → query(cwd=project/) [PO: 라우팅+dependency 판단]
-                              → query(cwd=workspace/) [각 workspace 실행]
+Messenger → Python middleware → query(cwd=project/) [PO: routing + dependency resolution]
+                                  → query(cwd=workspace/) [per-workspace execution]
 ```
-## 핵심 설계 결정
 
-1. **기존 CLAUDE.md + .claude/ 무변경** — 모든 프로젝트/workspace의 기존 설정을 그대로 활용
-2. **cwd 기반 설정 자동 로드** — `query(cwd="workspace경로")`가 해당 경로의 CLAUDE.md + .claude/* 를 계층적으로 로드
-3. **PO가 dependency를 동적 판단** — 정적 DAG 없음. 매 요청마다 작업 내용을 분석하여 phases 결정
-4. **Python은 비즈니스 로직을 모름** — cwd만 바꿔가며 query() 호출
+## Core Design Decisions
 
-## 구조
+1. **Existing CLAUDE.md + .claude/ untouched** — All project/workspace configurations are used as-is.
+2. **cwd-based config auto-loading** — `query(cwd="workspace-path")` hierarchically loads the CLAUDE.md + .claude/* at that path.
+3. **PO dynamically resolves dependencies** — No static DAG. Phases are determined by analyzing task content on every request.
+4. **Python has no business logic** — It only calls `query()` while switching `cwd`.
+
+## Structure
 
 ```
 orchestrator/
-├── __init__.py      # BASE path, extract_json 유틸리티
+├── __init__.py      # BASE path, extract_json utility
 ├── po.py            # PO: query(cwd=project/) → execution plan JSON
-├── executor.py      # phase별 workspace query(cwd=workspace/) 실행
-├── task_log.py      # 작업 로그 .tasks/{date}/{project}/{task_id}_{label}.md
-├── server.py        # 진입점: 채널 라우팅, ConfirmGate, 전체 흐름
+├── executor.py      # Phase-by-phase workspace query(cwd=workspace/) execution
+├── task_log.py      # Task log at .tasks/{date}/{project}/{task_id}_{label}.md
+├── server.py        # Entry point: channel routing, ConfirmGate, overall flow
 ├── scripts/
-│   └── cleanup.sh   # 기존 통신용 .tasks/ 파일 정리
+│   └── cleanup.sh   # Cleanup legacy communication .tasks/ files
 └── tests/
     ├── test_executor.py
     ├── test_task_log.py
     └── test_server.py
 ```
 
-## 설치
+## Installation
 
 ```bash
 pip install claude-agent-sdk
 ```
 
-## 실행
+## Usage
 
 ```python
 import asyncio
 from orchestrator.server import handle_request
 
 result = asyncio.run(handle_request(
-    user_message="new-place 서버에 health check API 추가해줘",
+    user_message="Add a health check API to the new-place server",
     channel="cli",
     callback_info={},
 ))
 ```
 
-### ConfirmGate 사용
+### Using ConfirmGate
 
 ```python
 from orchestrator.server import ConfirmGate
 
 gate = ConfirmGate()
-gate.create_request("req-1", "health check 추가", "works", {"bot_id": "..."})
+gate.create_request("req-1", "add health check", "works", {"bot_id": "..."})
 
-# 사용자 confirm 후:
+# After user confirms:
 result = await gate.confirm("req-1")
 ```
 
-## 테스트
+## Testing
 
 ```bash
 python -m pytest orchestrator/tests/ -v
 ```
 
-## 새 workspace 추가
+## Adding a New Workspace
 
-workspace 폴더에 `CLAUDE.md` + `.claude/` 생성 → 끝.
-PO가 `ls`와 CLAUDE.md 읽기를 통해 자동 발견한다.
+Create a `CLAUDE.md` + `.claude/` directory inside the workspace folder — that is all.
+The PO auto-discovers it via `ls` and reading CLAUDE.md.
 
-## 기존 .tasks/ 정리
+## Cleaning Up Legacy .tasks/
 
-마이그레이션 완료 후:
+After migration is complete:
 ```bash
-# 먼저 dry-run (삭제 대상만 출력)
+# Dry run first (prints targets without deleting)
 bash orchestrator/scripts/cleanup.sh /home1/irteam/naver/project/.tasks
 
-# 확인 후 실제 삭제
+# Delete after verifying
 bash orchestrator/scripts/cleanup.sh /home1/irteam/naver/project/.tasks --execute
 ```

@@ -248,9 +248,9 @@ AWAITING_FOLLOWUP
 
 | Action | Keywords |
 |--------|---------|
-| Confirm | `확인`, `진행`, `yes`, `y`, `ok`, `ㅇㅇ`, `네`, `ㄱㄱ`, `ㄱ` |
-| Cancel | `취소`, `cancel`, `no`, `n`, `아니`, `ㄴㄴ`, `ㄴ` |
-| End session | `네`, `ㅇㅇ`, `yes`, `y`, `ok`, `끝`, `done`, `됐어`, `응`, `ㅇ`, `확인` |
+| Confirm | `yes`, `y`, `ok`, `confirm`, `proceed` |
+| Cancel | `cancel`, `no`, `n` |
+| End session | `yes`, `y`, `ok`, `done`, `end`, `finish` |
 
 ### Two-step Confirm Flow (Code Modification Tasks)
 

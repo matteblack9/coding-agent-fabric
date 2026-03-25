@@ -141,8 +141,8 @@ class TestWriteTaskLog:
         assert "### server [pass]" in content
         assert "### frontend [pass]" in content
         assert "- changed: api.py" in content
-        assert "Phase 1: server (독립)" in content
-        assert "Phase 2: frontend (이전 phase 결과 반영)" in content
+        assert "Phase 1: server (independent)" in content
+        assert "Phase 2: frontend (incorporates previous phase results)" in content
 
 
 class TestRetention:

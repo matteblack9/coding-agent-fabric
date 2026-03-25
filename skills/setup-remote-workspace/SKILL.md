@@ -1,222 +1,222 @@
 ---
 name: setup-remote-workspace
-description: "원격 장비의 특정 workspace 하나를 Orchestrator에 연결하는 스킬. setup-remote-project와 유사하지만 단일 workspace 단위로 설정. /claude-code-tunnels:setup-remote-workspace 로 실행."
+description: "Skill for connecting a single workspace on a remote machine to the Orchestrator. Similar to setup-remote-project but operates at the individual workspace level. Execute with /claude-code-tunnels:setup-remote-workspace."
 ---
 
 # Setup Remote Workspace
 
-원격 장비의 특정 workspace 하나를 Orchestrator에 연결한다.
-`/claude-code-tunnels:setup-remote-project`와 동일한 listener를 사용하되, 단일 workspace 단위로 등록.
+Connects a single workspace on a remote machine to the Orchestrator.
+Uses the same listener as `/claude-code-tunnels:setup-remote-project`, but registers at the individual workspace level.
 
 ## Difference from setup-remote-project
 
 | | setup-remote-project | setup-remote-workspace |
 |---|---|---|
-| 대상 | 프로젝트 전체 (하위 workspace 포함) | 특정 workspace 1개 |
-| 등록 | 프로젝트 구조를 PO가 인식 | workspace를 직접 지정하여 등록 |
-| 사용 시점 | 프로젝트 전체를 원격으로 옮길 때 | 기존 프로젝트에 원격 workspace를 추가할 때 |
+| Target | Entire project (including sub-workspaces) | A single specific workspace |
+| Registration | PO discovers the project structure | Workspace is specified and registered directly |
+| When to use | Moving an entire project to a remote machine | Adding a remote workspace to an existing project |
 
 ## Rules
 
-- **사용자에게 묻지 않고 절대 진행하지 않는다**
-- **자동 탐지된 값은 선택지로 먼저 제시** — 사용자는 번호만 치면 된다
-- listener 1개당 workspace 1개 (같은 호스트 → 다른 포트 사용)
-- 원격 workspace에 CLAUDE.md가 있어야 PO가 이해할 수 있음
+- **Never proceed without asking the user**
+- **Auto-detected values are presented as numbered choices first** — the user only needs to enter a number
+- One listener per workspace (same host → use a different port)
+- The remote workspace must have a CLAUDE.md for the PO to understand it
 
 ---
 
 ## Step 0: Environment Preflight (CRITICAL)
 
-단일 workspace를 원격 listener에 연결하려면 orchestrator 설치와 접속 수단이 필요하다.
-**하나라도 실패하면 해결될 때까지 다음 단계로 진행하지 않는다.**
+Connecting a single workspace to a remote listener requires the orchestrator to be installed and an access method to be available.
+**If any check fails, do not proceed to the next step until it is resolved.**
 
-### 0-1. orchestrator.yaml 확인
+### 0-1. Verify orchestrator.yaml
 
-**왜 필요한가**: remote_workspaces 배열에 새 workspace를 추가해야 한다.
+**Why it is needed**: a new workspace must be added to the remote_workspaces array.
 
-- 없으면 → "먼저 /claude-code-tunnels:setup-orchestrator 를 실행해주세요." 후 **중단**
+- Not found → "Please run /claude-code-tunnels:setup-orchestrator first." then **stop**
 
-### 0-2. orchestrator/remote/ 확인
+### 0-2. Verify orchestrator/remote/
 
-**왜 필요한가**: deploy.py와 listener.py가 있어야 원격 배포가 가능하다.
+**Why it is needed**: deploy.py and listener.py must be present for remote deployment.
 
-### 0-3. 기존 remote_workspaces 확인
+### 0-3. Check existing remote_workspaces
 
-**왜 필요한가**: 같은 host:port에 중복 등록을 방지하고, 기존 포트와 겹치지 않는 포트를 추천할 수 있다.
+**Why it is needed**: prevents duplicate registration on the same host:port, and allows recommending a port that does not conflict with existing ones.
 
 ```
-현재 등록된 원격 workspace:
+Currently registered remote workspaces:
   my-project/backend  → 10.0.0.5:9100
   my-project/frontend → 10.0.0.5:9101
 
-새 workspace를 추가합니다.
+Adding a new workspace.
 ```
 
-### 0-4. 접속 도구 확인
+### 0-4. Verify access tools
 
-사용 가능한 도구를 자동 탐지:
+Auto-detect available tools:
 
 ```
-원격 접속 방법을 선택해주세요.
+Select the remote access method.
 
-  [1] ssh       ← 탐지됨
-  [2] kubectl   ← 탐지됨
+  [1] ssh       <- detected
+  [2] kubectl   <- detected
 
-번호:
+Number:
 ```
 
 ---
 
-## Step 1: 대상 식별
+## Step 1: Identify Target
 
 ### 1-1. project
 
-로컬 프로젝트 디렉토리를 자동 탐지하여 선택지로 제시:
+Auto-detect local project directories and present as choices:
 
 ```bash
-# orchestrator.yaml의 root 아래 디렉토리 목록
+# List directories under the root in orchestrator.yaml
 root=$(python3 -c "import yaml; print(yaml.safe_load(open('orchestrator.yaml')).get('root','.'))")
-ls "$root"  # 제외: orchestrator, ARCHIVE, .tasks, .claude, .git, 숨김폴더
+ls "$root"  # exclude: orchestrator, ARCHIVE, .tasks, .claude, .git, hidden folders
 ```
 
 ```
-이 workspace가 속한 프로젝트를 선택해주세요.
-로컬에 같은 이름의 프로젝트 디렉토리가 있어야 PO가 인식합니다.
+Select the project this workspace belongs to.
+A project directory with the same name must exist locally for the PO to recognize it.
 
   [1] my-project
   [2] another-project
-  [3] 직접 입력
+  [3] Enter manually
 
-번호:
+Number:
 ```
 
 ### 1-2. workspace
 
 ```
-workspace 이름을 입력해주세요.
-execution plan에서 이 이름으로 표시됩니다.
-orchestrator.yaml에는 "$PROJECT/$WORKSPACE" 로 등록됩니다.
+Enter the workspace name.
+This name will appear in the execution plan.
+It will be registered in orchestrator.yaml as "$PROJECT/$WORKSPACE".
 
-입력 (예: data-pipeline):
+Enter (e.g. data-pipeline):
 ```
 
-### 결과 미리보기
+### Preview
 
 ```
-등록될 이름: my-project/data-pipeline
+Name to be registered: my-project/data-pipeline
 
-맞나요? (yes/no)
+Is this correct? (yes/no)
 ```
 
 ---
 
-## Step 2: 연결 정보 수집
+## Step 2: Collect Connection Details
 
-### SSH 선택 시
+### If SSH is selected
 
 ```
 ─────────────────────────────────────────────────────────────────
-1. host (필수)
-   listener에 HTTP로 연결할 원격 장비입니다.
-   입력:
+1. host (required)
+   The remote machine to connect to via HTTP for the listener.
+   Enter:
 
 2. user
-     [1] $USER   ← 현재 사용자
-     [2] 직접 입력
-   번호:
+     [1] $USER   <- current user
+     [2] Enter manually
+   Number:
 
 3. key_file
-     [1] ~/.ssh/id_rsa       ← 존재함
-     [2] ~/.ssh/id_ed25519   ← 존재함
-     [3] 기본 key 사용
-     [4] 직접 입력
-   번호:
+     [1] ~/.ssh/id_rsa       <- exists
+     [2] ~/.ssh/id_ed25519   <- exists
+     [3] Use default key
+     [4] Enter manually
+   Number:
 ─────────────────────────────────────────────────────────────────
 ```
 
-SSH key 후보 자동 탐지: `~/.ssh/` 스캔.
-입력 완료 후 **즉시 연결 테스트**: `ssh $USER@$HOST "echo OK"`
+SSH key candidates auto-detected by scanning `~/.ssh/`.
+After input, **immediately run a connection test**: `ssh $USER@$HOST "echo OK"`
 
-### kubectl 선택 시
+### If kubectl is selected
 
-namespace → pod → container 순서로 자동 탐지 선택지 제시 (setup-remote-project과 동일).
+Present auto-detected choices in the order: namespace → pod → container (same as setup-remote-project).
 
 ---
 
-## Step 3: Remote Workspace 경로
+## Step 3: Remote Workspace Path
 
 ```
-원격 장비에서 workspace가 위치한 절대경로를 입력해주세요.
+Enter the absolute path where the workspace is located on the remote machine.
 
-입력 (예: /home/user/my-project/data-pipeline):
+Enter (e.g. /home/user/my-project/data-pipeline):
 ```
 
-검증: 원격에서 `test -d` 로 존재 확인.
+Validation: verify existence on the remote machine with `test -d`.
 
-listener 포트 — 기존 등록 포트와 겹치지 않는 후보 자동 계산:
+Listener port — auto-calculate candidates that do not conflict with already-registered ports:
 
 ```bash
-# 이미 사용 중인 포트 확인
-used_ports=(9100 9101)  # orchestrator.yaml에서 같은 host의 포트
-next_port=9102          # 다음 사용 가능 포트
+# Check already-used ports
+used_ports=(9100 9101)  # ports for the same host in orchestrator.yaml
+next_port=9102          # next available port
 ```
 
 ```
-listener 포트를 선택해주세요.
-같은 호스트(10.0.0.5)에 이미 9100, 9101이 등록되어 있습니다.
+Select the listener port.
+Ports 9100 and 9101 are already registered for the same host (10.0.0.5).
 
-  [1] 9102   ← 다음 번호, 사용 가능
-  [2] 9103   ← 사용 가능
-  [3] 직접 입력
+  [1] 9102   <- next in sequence, available
+  [2] 9103   <- available
+  [3] Enter manually
 
-번호:
+Number:
 ```
 
-인증 토큰:
+Auth token:
 ```
-  [1] 설정 안 함
-  [2] 토큰 입력
+  [1] No authentication
+  [2] Enter a token
 
-번호:
+Number:
 ```
 
 ---
 
-## Step 4: 원격 환경 사전 확인 (CRITICAL)
+## Step 4: Remote Environment Pre-check (CRITICAL)
 
-**왜 필요한가**: listener가 원격에서 Python + claude-agent-sdk + aiohttp을 사용한다.
+**Why it is needed**: the listener uses Python + claude-agent-sdk + aiohttp on the remote machine.
 
 ```
-원격 환경 확인 결과:
+Remote environment check results:
   Python:            3.11.5            ✓
   claude-agent-sdk:  0.3.0             ✓
   aiohttp:           3.9.1             ✓
 
-  [1] 계속 진행
-  — 또는 미설치 항목이 있으면 —
-  [1] 원격에서 지금 설치
-  [2] 직접 설치 후 계속
+  [1] Continue
+  — or if any items are missing —
+  [1] Install on remote now
+  [2] Install manually and continue
 
-번호:
+Number:
 ```
 
 ---
 
-## Step 5: 배포 & 등록
+## Step 5: Deploy & Register
 
-배포 요약:
+Deployment summary:
 ```
-배포 요약:
+Deployment summary:
   workspace:  my-project/data-pipeline
-  대상:       irteam@10.0.0.5
-  경로:       /home/user/my-project/data-pipeline
-  포트:       9102
-  토큰:       (없음)
+  Target:     irteam@10.0.0.5
+  Path:       /home/user/my-project/data-pipeline
+  Port:       9102
+  Token:      (none)
 
-진행할까요? (yes/no)
+Proceed? (yes/no)
 ```
 
-확인 후 배포 + orchestrator.yaml 업데이트:
+After confirmation, deploy + update orchestrator.yaml:
 ```yaml
 remote_workspaces:
   - name: my-project/backend
@@ -225,7 +225,7 @@ remote_workspaces:
   - name: my-project/frontend
     host: 10.0.0.5
     port: 9101
-  - name: my-project/data-pipeline    # ← 새로 추가
+  - name: my-project/data-pipeline    # <- newly added
     host: 10.0.0.5
     port: 9102
     token: ""
@@ -233,17 +233,17 @@ remote_workspaces:
 
 ---
 
-## Step 6: 검증
+## Step 6: Validation
 
 ```bash
 curl http://$HOST:$LISTENER_PORT/health
-# 기대: {"status": "ok", "cwd": "...", "port": 9102}
+# Expected: {"status": "ok", "cwd": "...", "port": 9102}
 ```
 
-- 성공 → "원격 workspace 연결 완료. PO가 execution plan에 이 workspace를 포함하면 자동으로 원격 실행됩니다."
-- 실패 → 에러 내용 보여주고 원인 분석. 자동 재시도하지 않음.
+- Success → "Remote workspace connection complete. When the PO includes this workspace in the execution plan, tasks will run remotely automatically."
+- Failure → show the error details and analyze the cause. Do not retry automatically.
 
-## 로그 확인
+## Viewing Logs
 
 ```bash
 ssh $USER@$HOST cat /tmp/claude-listener-$LISTENER_PORT.log

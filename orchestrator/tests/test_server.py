@@ -109,7 +109,7 @@ class TestFormatResults:
             channel="cli",
         )
 
-        assert "요청:" not in result
+        assert "Request:" not in result
 
     def test_multi_phase_format(self):
         result = format_results(
@@ -151,7 +151,7 @@ class TestPlanRequest:
             mock_route.return_value = RouteResult(
                 projects=[],
                 refined_message="do something",
-                clarification_needed="어떤 프로젝트를 말씀하시는 건가요?",
+                clarification_needed="Which project are you referring to?",
             )
             result = await plan_request("do something")
             assert result["status"] == "clarification_needed"
@@ -202,7 +202,7 @@ class TestHandleRequest:
             mock_route.return_value = RouteResult(
                 projects=[],
                 refined_message="do something",
-                clarification_needed="어떤 프로젝트를 말씀하시는 건가요?",
+                clarification_needed="Which project are you referring to?",
             )
 
             result = await handle_request("do something", "works", {})

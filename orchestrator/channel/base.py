@@ -21,8 +21,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-CONFIRM_KEYWORDS = {"확인", "진행", "yes", "y", "ok", "ㅇㅇ", "네", "ㄱㄱ", "ㄱ"}
-CANCEL_KEYWORDS = {"취소", "cancel", "no", "n", "아니", "ㄴㄴ", "ㄴ"}
+CONFIRM_KEYWORDS = {"yes", "y", "ok", "confirm", "proceed"}
+CANCEL_KEYWORDS = {"cancel", "no", "n"}
 
 
 def load_credential_file(path: Path) -> dict[str, str]:
@@ -86,16 +86,16 @@ class BaseChannel(ABC):
         session = self._sessions.get_or_create(source_key)
         text_lower = user_text.lower()
 
-        # --- State: AWAITING_FOLLOWUP (작업 완료 후 종료 확인) ---
+        # --- State: AWAITING_FOLLOWUP (check whether to end after task completion) ---
         if session.state == SessionState.AWAITING_FOLLOWUP:
             if text_lower in FOLLOWUP_END_KEYWORDS:
-                await self._send_and_record(session, callback_info, "세션을 종료합니다.")
+                await self._send_and_record(session, callback_info, "Session ended.")
                 self._sessions.clear(source_key)
                 return
-            # 종료하지 않음 → 이전 대화 컨텍스트 유지하고 후속 요청 처리
+            # Not ending — keep previous conversation context and handle follow-up request
             session.state = SessionState.IDLE
 
-        # --- State: PENDING_EXECUTION_CONFIRM (실행 계획 확인 대기) ---
+        # --- State: PENDING_EXECUTION_CONFIRM (waiting for execution plan confirmation) ---
         if session.state == SessionState.PENDING_EXECUTION_CONFIRM:
             if text_lower in CONFIRM_KEYWORDS:
                 session.add_user_turn(user_text)
@@ -106,14 +106,14 @@ class BaseChannel(ABC):
                 session.add_user_turn(user_text)
                 session.pending_plan = None
                 session.state = SessionState.IDLE
-                await self._send_and_record(session, callback_info, "취소했습니다.")
+                await self._send_and_record(session, callback_info, "Cancelled.")
                 return
 
-            # 확인/취소 외 텍스트 → 현재 계획 폐기, 새 요청으로 처리
+            # Text other than confirm/cancel — discard current plan and treat as new request
             session.pending_plan = None
             session.state = SessionState.IDLE
 
-        # --- State: PENDING_CONFIRM (확인/취소 대기) ---
+        # --- State: PENDING_CONFIRM (waiting for confirm/cancel) ---
         if session.state == SessionState.PENDING_CONFIRM:
             pending_id = session.pending_request_id
 
@@ -127,7 +127,7 @@ class BaseChannel(ABC):
                 self._confirm_gate.remove(pending_id)
                 session.pending_request_id = None
                 session.state = SessionState.IDLE
-                await self._send_and_record(session, callback_info, "취소했습니다.")
+                await self._send_and_record(session, callback_info, "Cancelled.")
                 return
 
             if pending_id:
@@ -135,15 +135,15 @@ class BaseChannel(ABC):
                 session.pending_request_id = None
             session.state = SessionState.IDLE
 
-        # --- State: IDLE → 새 요청 생성 ---
+        # --- State: IDLE → create new request ---
         session.add_user_turn(user_text)
 
-        # 이전 대화 이력이 있으면 컨텍스트로 포함 (후속 요청에서 맥락 유지)
+        # Include previous conversation history as context if available (preserves follow-up context)
         context = session.to_context_string(max_turns=10)
         if len(session.turns) > 1 and context:
             refined_message = (
-                f"[이전 대화 맥락]\n{context}\n\n"
-                f"[현재 요청]\n{user_text}"
+                f"[Previous conversation context]\n{context}\n\n"
+                f"[Current request]\n{user_text}"
             )
         else:
             refined_message = user_text
@@ -160,26 +160,26 @@ class BaseChannel(ABC):
         session.state = SessionState.PENDING_CONFIRM
 
         confirm_msg = (
-            f"[{request_id}] 이렇게 이해했는데 맞나요?\n"
+            f"[{request_id}] Is this correct?\n"
             f"> {user_text}\n\n"
-            f'진행하려면 "확인", 취소하려면 "취소"를 입력해주세요.'
+            f'Reply "yes" to proceed or "cancel" to abort.'
         )
         await self._send_and_record(session, callback_info, confirm_msg)
 
     @staticmethod
     def _format_plan_for_confirm(plan_result: dict, request_id: str) -> str:
         """Format execution plan for user confirmation (2nd confirm)."""
-        lines: list[str] = [f"`{request_id}` 다음 작업을 수행합니다:\n"]
+        lines: list[str] = [f"`{request_id}` The following tasks will be executed:\n"]
 
         for plan in plan_result.get("plans", []):
             project = plan.get("project", "unknown")
             phases = plan.get("phases", [])
             tasks = plan.get("task_per_workspace", {})
 
-            lines.append(f"*프로젝트: {project}*")
+            lines.append(f"*Project: {project}*")
             for i, phase_workspaces in enumerate(phases, 1):
                 ws_names = ", ".join(phase_workspaces)
-                parallel = " (병렬)" if len(phase_workspaces) > 1 else ""
+                parallel = " (parallel)" if len(phase_workspaces) > 1 else ""
                 lines.append(f"Phase {i}: {ws_names}{parallel}")
                 for ws in phase_workspaces:
                     task_desc = tasks.get(ws, "")
@@ -188,7 +188,7 @@ class BaseChannel(ABC):
                         lines.append(f"  - {ws}: {short}")
             lines.append("")
 
-        lines.append('진행하시겠습니까? ("확인" / "취소")')
+        lines.append('Do you want to proceed? ("yes" / "cancel")')
         return "\n".join(lines)
 
     async def _do_confirm(
@@ -201,7 +201,7 @@ class BaseChannel(ABC):
         # Atomic pop: get_pending + remove in one step
         req = self._confirm_gate.remove(request_id)
         if req is None:
-            await self._send_and_record(session, callback_info, "이미 처리된 요청입니다.")
+            await self._send_and_record(session, callback_info, "This request has already been processed.")
             session.state = SessionState.IDLE
             session.pending_request_id = None
             return
@@ -212,7 +212,7 @@ class BaseChannel(ABC):
         session.pending_request_id = None
         session.state = SessionState.EXECUTING
         await self._send_and_record(
-            session, callback_info, f"`{request_id}` 실행 계획 수립 중..."
+            session, callback_info, f"`{request_id}` Building execution plan..."
         )
 
         try:
@@ -220,28 +220,28 @@ class BaseChannel(ABC):
 
             plan_result = await plan_request(user_message, raw_message=raw_message)
 
-            # clarification → 다시 대기
+            # clarification → wait again
             if plan_result.get("status") == "clarification_needed":
-                msg = plan_result.get("message", "추가 정보가 필요합니다.")
+                msg = plan_result.get("message", "Additional information is required.")
                 session.state = SessionState.IDLE
                 await self._send_and_record(session, callback_info, f"`{request_id}` {msg}")
                 return
 
-            # direct_answer → 바로 전달 (수정 없음, 2차 확인 불필요)
+            # direct_answer → forward immediately (no modification, no second confirmation needed)
             if plan_result.get("status") == "direct_answer":
                 from orchestrator.server import to_slack_mrkdwn
                 msg = to_slack_mrkdwn(plan_result.get("message", ""))
                 formatted = (
-                    f":speech_balloon: *요청 사항*\n{raw_message}\n\n"
+                    f":speech_balloon: *Request*\n{raw_message}\n\n"
                     f"─────────────────────────\n\n"
-                    f":clipboard: *응답*\n{msg}"
+                    f":clipboard: *Response*\n{msg}"
                 )
                 await self._send_and_record(session, callback_info, formatted)
                 session.state = SessionState.AWAITING_FOLLOWUP
-                await self._send_and_record(session, callback_info, "작업을 끝낼까요?")
+                await self._send_and_record(session, callback_info, "All done? (reply \"yes\" to end the session)")
                 return
 
-            # direct_request (wiki, jira 등 프로젝트 무관) → 바로 실행
+            # direct_request (wiki, jira, etc. — project-agnostic) → execute immediately
             if plan_result.get("status") == "direct_request":
                 from orchestrator.server import execute_from_plan
                 result = await execute_from_plan(
@@ -251,16 +251,16 @@ class BaseChannel(ABC):
                     from orchestrator.server import to_slack_mrkdwn
                     msg = to_slack_mrkdwn(result.get("message", ""))
                     formatted = (
-                        f":speech_balloon: *요청 사항*\n{raw_message}\n\n"
+                        f":speech_balloon: *Request*\n{raw_message}\n\n"
                         f"─────────────────────────\n\n"
-                        f":clipboard: *응답*\n{msg}"
+                        f":clipboard: *Response*\n{msg}"
                     )
                     await self._send_and_record(session, callback_info, formatted)
                 session.state = SessionState.AWAITING_FOLLOWUP
-                await self._send_and_record(session, callback_info, "작업을 끝낼까요?")
+                await self._send_and_record(session, callback_info, "All done? (reply \"yes\" to end the session)")
                 return
 
-            # planned (workspace 수정 작업) → 2차 확인 필요
+            # planned (workspace modification tasks) → second confirmation required
             if plan_result.get("status") == "planned":
                 session.pending_plan = {
                     **plan_result,
@@ -283,5 +283,13 @@ class BaseChannel(ABC):
 
             await self._send_and_record(
                 session, callback_info,
-                f":x: *계획 수립 실패* `{request_id}`\n"
-                f"
+                f":x: *Planning failed* `{request_id}`\n"
+                f"```{error_summary}\n{error_detail}```\n"
+                f"Try again or request something else."
+            )
+
+    @abstractmethod
+    async def start(self) -> None: ...
+
+    @abstractmethod
+    async def stop(self) -> None: ...

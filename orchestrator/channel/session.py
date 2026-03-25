@@ -9,19 +9,19 @@ from enum import Enum
 
 logger = logging.getLogger(__name__)
 
-SESSION_TTL_SECONDS = 30 * 60  # 30분 idle → 자동 만료
+SESSION_TTL_SECONDS = 30 * 60  # 30-minute idle → auto-expire
 
 
 class SessionState(Enum):
-    IDLE = "idle"                          # 대기 상태
-    PENDING_CONFIRM = "pending_confirm"    # 확인/취소 대기 중
-    PENDING_EXECUTION_CONFIRM = "pending_execution_confirm"  # 실행 계획 확인 대기
-    EXECUTING = "executing"                # 작업 실행 중
-    AWAITING_FOLLOWUP = "awaiting_followup"  # 작업 완료, 종료 확인 중
+    IDLE = "idle"                          # waiting for input
+    PENDING_CONFIRM = "pending_confirm"    # waiting for confirm/cancel
+    PENDING_EXECUTION_CONFIRM = "pending_execution_confirm"  # waiting for execution plan confirmation
+    EXECUTING = "executing"                # task is running
+    AWAITING_FOLLOWUP = "awaiting_followup"  # task complete, checking whether to end session
 
 
 FOLLOWUP_END_KEYWORDS = {
-    "네", "ㅇㅇ", "yes", "y", "ok", "끝", "done", "됐어", "응", "ㅇ", "확인",
+    "yes", "y", "ok", "done", "end", "confirm",
 }
 
 
@@ -61,7 +61,7 @@ class Session:
             return ""
         lines = []
         for turn in recent:
-            prefix = "사용자" if turn.role == "user" else "봇"
+            prefix = "user" if turn.role == "user" else "bot"
             lines.append(f"[{prefix}] {turn.text}")
         return "\n".join(lines)
 

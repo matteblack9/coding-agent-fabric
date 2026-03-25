@@ -1,52 +1,52 @@
 ---
 name: setup-remote-project
-description: "원격 장비(SSH/kubectl)에 listener를 배포하여 Orchestrator가 해당 장비의 프로젝트를 workspace로 사용 가능하게 설정. /claude-code-tunnels:setup-remote-project 로 실행."
+description: "Deploys a listener to a remote machine (SSH/kubectl) so the Orchestrator can use that machine's project as a workspace. Execute with /claude-code-tunnels:setup-remote-project."
 ---
 
 # Setup Remote Project
 
-원격 장비(SSH) 또는 Kubernetes Pod에 lightweight HTTP listener를 배포하여,
-Orchestrator가 원격 환경의 프로젝트를 workspace로 사용할 수 있게 한다.
+Deploys a lightweight HTTP listener to a remote machine (SSH) or Kubernetes Pod,
+allowing the Orchestrator to use the remote environment's project as a workspace.
 
-핵심: `claude-agent-sdk query(cwd=)` 는 타임아웃이 없다. listener가 원격에서 SDK를 직접 호출하므로
-로컬 실행과 동일하게 시간 제한 없이 작업이 수행된다.
+Key point: `claude-agent-sdk query(cwd=)` has no timeout. Because the listener calls the SDK directly on the remote machine,
+tasks run without time limits, just as they would locally.
 
 ## Rules
 
-- **사용자에게 묻지 않고 절대 진행하지 않는다**
-- **자동 탐지된 값은 선택지로 먼저 제시** — 사용자는 번호만 치면 된다
-- listener 1개당 workspace 1개 (같은 호스트에 여러 workspace → 다른 포트)
-- 원격 workspace에 CLAUDE.md가 있어야 PO가 이해할 수 있음
-- listener는 지속 실행 필요 (nohup 기본, systemd/supervisord 권장)
+- **Never proceed without asking the user**
+- **Auto-detected values are presented as numbered choices first** — the user only needs to enter a number
+- One listener per workspace (multiple workspaces on the same host → use different ports)
+- The remote workspace must have a CLAUDE.md for the PO to understand it
+- The listener must run continuously (nohup by default, systemd/supervisord recommended)
 
 ---
 
 ## Step 0: Environment Preflight (CRITICAL)
 
-원격 프로젝트 연결에는 로컬 orchestrator 설치와 원격 장비로의 접근 수단(ssh/kubectl)이 필요하다.
-아래 항목을 순서대로 확인하고, **하나라도 실패하면 해결될 때까지 다음 단계로 진행하지 않는다.**
+Connecting a remote project requires a local orchestrator installation and a means of accessing the remote machine (ssh/kubectl).
+Check each item in order — **if any check fails, do not proceed to the next step until it is resolved.**
 
-### 0-1. orchestrator.yaml 확인
+### 0-1. Verify orchestrator.yaml
 
-**왜 필요한가**: remote_workspaces 설정을 이 파일에 등록해야 하고, executor가 여기서 원격 호스트 정보를 읽는다.
+**Why it is needed**: the remote_workspaces configuration must be registered in this file, and the executor reads remote host information from it.
 
-- 없으면 → "먼저 /claude-code-tunnels:setup-orchestrator 를 실행해주세요." 후 **중단**
+- Not found → "Please run /claude-code-tunnels:setup-orchestrator first." then **stop**
 
-### 0-2. orchestrator/remote/ 확인
+### 0-2. Verify orchestrator/remote/
 
-**왜 필요한가**: `deploy.py`(원격 배포 스크립트)와 `listener.py`(원격에서 실행될 HTTP 서버)가 있어야 배포가 가능하다.
+**Why it is needed**: `deploy.py` (the remote deployment script) and `listener.py` (the HTTP server to run on the remote machine) must be present for deployment.
 
 ```bash
 if [ ! -f "orchestrator/remote/deploy.py" ] || [ ! -f "orchestrator/remote/listener.py" ]; then
-  echo "orchestrator/remote/ 파일이 없습니다."
+  echo "orchestrator/remote/ files not found."
 fi
 ```
 
-### 0-3. 접속 도구 확인
+### 0-3. Verify access tools
 
-**왜 필요한가**: listener.py를 원격에 복사하고 실행하려면 ssh 또는 kubectl이 필요하다.
+**Why they are needed**: ssh or kubectl is required to copy listener.py to the remote machine and execute it.
 
-사용 가능한 도구를 자동 탐지:
+Auto-detect available tools:
 ```bash
 tools=()
 command -v ssh &>/dev/null && tools+=("ssh")
@@ -54,242 +54,242 @@ command -v kubectl &>/dev/null && tools+=("kubectl")
 ```
 
 ```
-원격 접속 방법을 선택해주세요.
-listener.py를 원격 장비에 복사하고 실행하는 데 사용됩니다.
+Select the remote access method.
+Used to copy and run listener.py on the remote machine.
 
-  [1] ssh       ← 탐지됨
-  [2] kubectl   ← 탐지됨
-  [3] 직접 입력 (다른 경로의 ssh/kubectl)
+  [1] ssh       <- detected
+  [2] kubectl   <- detected
+  [3] Enter manually (different path to ssh/kubectl)
 
-번호:
+Number:
 ```
 
-탐지 결과가 0개 → "ssh 또는 kubectl을 찾지 못했습니다. 설치 후 다시 시도해주세요."
+Zero candidates detected → "Could not find ssh or kubectl. Please install one and try again."
 
-### 0-4. 기존 remote_workspaces 확인
+### 0-4. Check existing remote_workspaces
 
-**왜 필요한가**: 같은 호스트:포트로 중복 등록을 방지하기 위해 현재 등록 상태를 보여준다.
+**Why it is needed**: display the current registration state to prevent duplicate registration on the same host:port.
 
 ```
-현재 등록된 원격 workspace:
-  (없음)
-  — 또는 —
+Currently registered remote workspaces:
+  (none)
+  — or —
   my-project/backend → 10.0.0.5:9100
   my-project/frontend → 10.0.0.5:9101
 ```
 
 ---
 
-## Step 1: 연결 정보 수집
+## Step 1: Collect Connection Details
 
 ### 1-1. workspace_name
 
 ```
-Orchestrator에서 이 원격 프로젝트를 어떤 이름으로 식별할까요?
-execution plan에서 이 이름으로 표시됩니다.
-형식: project/workspace (예: my-project/backend)
+What name should the Orchestrator use to identify this remote project?
+This name will appear in the execution plan.
+Format: project/workspace (e.g. my-project/backend)
 
-입력:
+Enter:
 ```
 
-검증: `/`가 포함되어야 함 (project/workspace 형태).
+Validation: must contain `/` (project/workspace format).
 
-### 1-2. SSH 정보 수집
+### 1-2. Collect SSH Details
 
-사용자가 ssh를 선택한 경우:
+If the user selected ssh:
 
 ```
 ─────────────────────────────────────────────────────────────────
-1. host (필수)
-   원격 장비의 IP 또는 hostname입니다. listener에 HTTP로 연결할 때 사용됩니다.
-   입력:
+1. host (required)
+   The IP address or hostname of the remote machine. Used to connect to the listener via HTTP.
+   Enter:
 
 2. user
-   SSH 접속 사용자명입니다.
+   The SSH username.
 
-     [1] $USER   ← 현재 사용자
-     [2] 직접 입력
+     [1] $USER   <- current user
+     [2] Enter manually
 
-   번호:
+   Number:
 
 3. key_file
-   SSH key 파일입니다.
+   The SSH key file.
 
-     [1] ~/.ssh/id_rsa     ← 존재함
-     [2] ~/.ssh/id_ed25519 ← 존재함
-     [3] 기본 key 사용 (ssh-agent)
-     [4] 직접 입력
+     [1] ~/.ssh/id_rsa     <- exists
+     [2] ~/.ssh/id_ed25519 <- exists
+     [3] Use default key (ssh-agent)
+     [4] Enter manually
 
-   번호:
+   Number:
 ─────────────────────────────────────────────────────────────────
 ```
 
-SSH key 후보는 `~/.ssh/` 디렉토리를 스캔하여 자동 탐지:
+SSH key candidates are auto-detected by scanning the `~/.ssh/` directory:
 ```bash
 for f in ~/.ssh/id_rsa ~/.ssh/id_ed25519 ~/.ssh/id_ecdsa; do
   [ -f "$f" ] && echo "$f"
 done
 ```
 
-입력 완료 후 **즉시 연결 테스트**:
+After input, **immediately run a connection test**:
 ```bash
 ssh $USER@$HOST "echo 'SSH OK'"
 ```
-- 실패 → 에러 보여주고 재입력 선택지 제시
+- Failure → show the error and present re-entry choices
 
-### 1-3. kubectl 정보 수집
+### 1-3. Collect kubectl Details
 
-사용자가 kubectl을 선택한 경우:
+If the user selected kubectl:
 
-사용 가능한 namespace/pod를 자동 탐지하여 선택지로 제시:
+Auto-detect available namespaces/pods and present as choices:
 
 ```bash
-# namespace 목록
+# namespace list
 kubectl get namespaces -o jsonpath='{.items[*].metadata.name}' 2>/dev/null
 ```
 
 ```
-Namespace를 선택해주세요.
+Select a namespace.
 
   [1] default
   [2] my-namespace
   [3] production
-  [4] 직접 입력
+  [4] Enter manually
 
-번호:
+Number:
 ```
 
-namespace 선택 후 pod 목록:
+Pod list after namespace selection:
 ```bash
 kubectl get pods -n $NAMESPACE -o jsonpath='{.items[*].metadata.name}' 2>/dev/null
 ```
 
 ```
-Pod를 선택해주세요.
+Select a Pod.
 
   [1] my-app-abc123
   [2] my-app-def456
-  [3] 직접 입력
+  [3] Enter manually
 
-번호:
+Number:
 ```
 
-container (multi-container pod인 경우):
+Container (for multi-container pods):
 ```bash
 kubectl get pod $POD -n $NAMESPACE -o jsonpath='{.spec.containers[*].name}' 2>/dev/null
 ```
 
 kubeconfig:
 ```
-  [1] ~/.kube/config   ← 기본
-  [2] 직접 입력
+  [1] ~/.kube/config   <- default
+  [2] Enter manually
 
-번호:
+Number:
 ```
 
-연결 테스트: `kubectl exec $POD -n $NAMESPACE -- echo 'K8s OK'`
+Connection test: `kubectl exec $POD -n $NAMESPACE -- echo 'K8s OK'`
 
 ---
 
-## Step 2: Remote Workspace 경로
+## Step 2: Remote Workspace Path
 
 ```
-원격 장비에서 프로젝트가 위치한 절대경로를 입력해주세요.
-listener가 이 경로에서 claude-agent-sdk query(cwd=)를 실행합니다.
+Enter the absolute path where the project is located on the remote machine.
+The listener will run claude-agent-sdk query(cwd=) from this path.
 
-입력 (예: /home/user/my-project):
+Enter (e.g. /home/user/my-project):
 ```
 
-검증 — 원격에서 경로 존재 확인:
+Validation — verify the path exists on the remote machine:
 ```bash
 ssh $USER@$HOST "test -d $REMOTE_CWD && echo OK || echo FAIL"
 ```
 
-listener 포트:
+Listener port:
 ```bash
-# 사용 가능한 포트 자동 탐지 (원격)
+# Auto-detect available ports on the remote machine
 for p in 9100 9101 9102; do
   ssh $USER@$HOST "ss -tlnp 2>/dev/null | grep -q ':${p} '" || available+=("$p")
 done
 ```
 
 ```
-listener 포트를 선택해주세요.
-executor가 이 포트로 HTTP 요청을 보냅니다.
+Select the listener port.
+The executor will send HTTP requests to this port.
 
-  [1] 9100   ← 사용 가능
-  [2] 9101   ← 사용 가능
-  [3] 직접 입력
+  [1] 9100   <- available
+  [2] 9101   <- available
+  [3] Enter manually
 
-번호:
+Number:
 ```
 
-인증 토큰:
+Auth token:
 ```
-listener에 Bearer 토큰 인증을 설정하시겠습니까?
-설정하면 orchestrator만 listener에 접근할 수 있습니다.
+Would you like to set up Bearer token authentication on the listener?
+When configured, only the orchestrator will be able to access the listener.
 
-  [1] 설정 안 함 (내부망이라 불필요)
-  [2] 토큰 입력
+  [1] No authentication (not needed on an internal network)
+  [2] Enter a token
 
-번호:
+Number:
 ```
 
 ---
 
-## Step 3: 원격 환경 사전 확인 (CRITICAL)
+## Step 3: Remote Environment Pre-check (CRITICAL)
 
-**왜 필요한가**: listener는 원격에서 Python + claude-agent-sdk + aiohttp을 사용한다. 하나라도 없으면 실행이 실패한다.
+**Why it is needed**: the listener uses Python + claude-agent-sdk + aiohttp on the remote machine. If any of these is missing, execution will fail.
 
 ```bash
-# 원격 Python 확인
+# Check remote Python
 ssh $USER@$HOST "python3 --version"
 
-# 원격 패키지 확인
+# Check remote packages
 ssh $USER@$HOST "python3 -c 'import claude_agent_sdk'" 2>/dev/null
 ssh $USER@$HOST "python3 -c 'import aiohttp'" 2>/dev/null
 ```
 
 ```
-원격 환경 확인 결과:
+Remote environment check results:
   Python:            3.11.5            ✓
   claude-agent-sdk:  OK                ✓
   aiohttp:           NOT INSTALLED     ✗
 
-미설치 패키지가 있습니다.
+Some packages are not installed.
 
-  [1] 원격에서 지금 설치 (ssh로 pip install 실행)
-  [2] 직접 설치 후 계속
-  [3] 무시하고 계속 (listener 시작 시 에러 발생 가능)
+  [1] Install on remote now (run pip install via ssh)
+  [2] Install manually and continue
+  [3] Ignore and continue (errors may occur when the listener starts)
 
-번호:
+Number:
 ```
 
 ---
 
-## Step 4: Listener 배포
+## Step 4: Deploy Listener
 
-배포 요약 후 확인:
+Show deployment summary and confirm:
 ```
-배포 요약:
-  대상:       $USER@$HOST
-  경로:       $REMOTE_CWD/.claude-listener.py
-  포트:       $LISTENER_PORT
-  토큰:       (설정됨/없음)
+Deployment summary:
+  Target:     $USER@$HOST
+  Path:       $REMOTE_CWD/.claude-listener.py
+  Port:       $LISTENER_PORT
+  Token:      (set / none)
 
-listener.py를 원격에 복사하고 실행합니다.
-진행할까요? (yes/no)
+listener.py will be copied to the remote machine and started.
+Proceed? (yes/no)
 ```
 
-배포 과정:
-1. listener.py를 원격에 복사 (`remote_cwd/.claude-listener.py`)
-2. 기존 listener가 있으면 kill
-3. nohup으로 시작 (로그: `/tmp/claude-listener-{port}.log`)
-4. health check 자동 수행 (최대 6회, 2초 간격)
+Deployment steps:
+1. Copy listener.py to the remote machine (`remote_cwd/.claude-listener.py`)
+2. Kill any existing listener process
+3. Start with nohup (log: `/tmp/claude-listener-{port}.log`)
+4. Automatically run a health check (up to 6 attempts, 2 seconds apart)
 
 ---
 
-## Step 5: orchestrator.yaml 등록 & 검증
+## Step 5: Register in orchestrator.yaml & Validate
 
 ```yaml
 remote_workspaces:
@@ -299,23 +299,23 @@ remote_workspaces:
     token: "$LISTENER_TOKEN"
 ```
 
-검증:
+Validation:
 ```bash
 curl http://$HOST:$LISTENER_PORT/health
-# 기대: {"status": "ok", "cwd": "$REMOTE_CWD", "port": $LISTENER_PORT}
+# Expected: {"status": "ok", "cwd": "$REMOTE_CWD", "port": $LISTENER_PORT}
 ```
 
-- 성공 → "원격 프로젝트 연결 완료."
-- 실패 → 에러 내용 보여주고 원인 분석. 자동 재시도하지 않음.
+- Success → "Remote project connection complete."
+- Failure → show the error details and analyze the cause. Do not retry automatically.
 
 ## Listener API
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/health` | GET | 상태 확인 |
-| `/execute` | POST | task 실행. Body: `{"task": "...", "upstream_context": {}}` |
+| `/health` | GET | Check status |
+| `/execute` | POST | Execute a task. Body: `{"task": "...", "upstream_context": {}}` |
 
-## 로그 확인
+## Viewing Logs
 
 ```bash
 ssh $USER@$HOST cat /tmp/claude-listener-$LISTENER_PORT.log
