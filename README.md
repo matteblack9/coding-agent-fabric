@@ -1,4 +1,4 @@
-# Code Tunnels Orchestrator (Micro-Agent Architecture)
+# Micro Agent Manager (Micro-Agent Architecture)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
@@ -9,7 +9,7 @@
 
 **One channel connection. One Project Orchestrator. Every workspace runs through its own isolated Workspace Orchestrator.**
 
-Code Tunnels Orchestrator is an orchestration layer for project trees. A message arrives from Slack or Telegram, the **Project Orchestrator (PO)** routes it, builds a dependency-aware execution plan, and delegates each workspace task to a **Workspace Orchestrator (WO)**.
+Micro Agent Manager is an orchestration layer for project trees. A message arrives from Slack or Telegram, the **Project Orchestrator (PO)** routes it, builds a dependency-aware execution plan, and delegates each workspace task to a **Workspace Orchestrator (WO)**.
 
 This version keeps the Python control plane, but expands execution beyond a Claude-only model:
 
@@ -29,7 +29,7 @@ Short glossary:
 
 ## Micro-Agent Architecture (MAA)
 
-Just as **Microservice Architecture (MSA)** decomposed the monolith into independently deployable services, Code Tunnels Orchestrator decomposes one large assistant session into independently executing workspace workers. Each WO owns one workspace, one runtime, and one bounded context.
+Just as **Microservice Architecture (MSA)** decomposed the monolith into independently deployable services, Micro Agent Manager decomposes one large assistant session into independently executing workspace workers. Each WO owns one workspace, one runtime, and one bounded context.
 
 We call this pattern **Micro-Agent Architecture (MAA)**.
 
@@ -112,9 +112,9 @@ flowchart TB
 
 ## Why This Over Claude Code's Built-in Channels?
 
-Claude Code has a Channels feature that forwards chat messages into a running CLI session. Code Tunnels Orchestrator solves a different problem.
+Claude Code has a Channels feature that forwards chat messages into a running CLI session. Micro Agent Manager solves a different problem.
 
-| Feature | Claude Code Channels | Code Tunnels Orchestrator |
+| Feature | Claude Code Channels | Micro Agent Manager |
 |---------|---------------------|---------------------|
 | **Architecture** | Single CLI session, single cwd | Always-on PO with phased workspace orchestration |
 | **Session model** | Bound to a running session | Background daemon with per-workspace execution |
@@ -126,13 +126,13 @@ Claude Code has a Channels feature that forwards chat messages into a running CL
 | **Confirm gate** | None | Built-in confirm/cancel flow |
 | **Setup** | Connect a channel to one session | TUI discovers PO root, workspaces, and runtimes |
 
-**In short**: Channels is a message bridge into one session. Code Tunnels Orchestrator is an orchestration layer that can coordinate multiple workspaces and multiple runtimes from one shared channel.
+**In short**: Channels is a message bridge into one session. Micro Agent Manager is an orchestration layer that can coordinate multiple workspaces and multiple runtimes from one shared channel.
 
 ---
 
 ## Team Collaboration — Shared Channel, Zero Handoff
 
-Traditional setups tie the assistant to one person's laptop or one long-running terminal session. Code Tunnels Orchestrator flips that: the orchestrator lives in the shared channel, not in one person's shell.
+Traditional setups tie the assistant to one person's laptop or one long-running terminal session. Micro Agent Manager flips that: the orchestrator lives in the shared channel, not in one person's shell.
 
 ```mermaid
 flowchart TB
