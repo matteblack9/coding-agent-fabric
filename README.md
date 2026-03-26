@@ -1,412 +1,68 @@
 # Claude-Code-Tunnels
 
-**Turn any project folder into an AI-orchestrated workspace with Slack and Telegram integration.**
-
-Claude-Code-Tunnels adds an always-on orchestration layer on top of your project folders. Send a message from Slack or Telegram and the control plane figures out which workspace should handle it, plans phase ordering, runs the task in the configured runtime, and returns structured results.
+Turn a project folder into an always-on Project Orchestrator that receives requests from Slack or Telegram, plans phased workspace execution, runs each workspace with `claude`, `codex`, or `opencode`, and sends structured results back.
 
 ## Terminology
 
-- **Project Orchestrator (PO)**: The control plane. It receives requests, routes them, builds execution plans, and coordinates work.
-- **Workspace**: A real code or document directory that contains the target work.
-- **Workspace Orchestrator (WO)**: The execution unit for one workspace. A WO runs with one runtime such as `claude`, `codex`, or `opencode`.
+- **Project Orchestrator (PO)**: The control plane. It receives requests, routes them, builds execution plans, and coordinates execution.
+- **Workspace**: A real directory that contains the code or documents to operate on.
+- **Workspace Orchestrator (WO)**: The execution unit for one workspace. A WO runs one runtime such as `claude`, `codex`, or `opencode`.
 - **Executor**: The component that runs WOs phase by phase, with parallel execution inside a phase and ordered dependencies between phases.
-- **Remote Workspace**: A workspace executed through the remote listener on another host or pod.
+- **Remote Workspace**: A workspace executed through the remote HTTP listener on another host or pod.
 
-## Start Here
+## Current Architecture
 
-```bash
-./install.sh
-.venv/bin/python -m orchestrator.setup_tui
-./start-orchestrator.sh --fg
+The current repository implements a multi-runtime architecture:
+
+- `claude` stays on the Python `claude-agent-sdk`
+- `codex` runs through a local Node bridge with `@openai/codex-sdk`
+- `opencode` runs through a local Node bridge with `@opencode-ai/sdk`
+- setup is now driven by a full-screen Textual TUI
+- the TUI helps decide whether the current folder is already a `PO`, should become a new `PO`, or looks like a single `Workspace`
+- the TUI writes `orchestrator.yaml`, `start-orchestrator.sh`, and root guidance files
+
+## Recommended Model
+
+The recommended setup is one `PO` root with an explicit workspace registry:
+
+```text
+po-root/
+├── orchestrator/
+├── orchestrator.yaml
+├── start-orchestrator.sh
+├── ARCHIVE/
+├── backend/
+├── frontend/
+└── services/
+    └── staging/
 ```
 
-The setup TUI checks whether the current folder already looks like a PO root, suggests workspace candidates, lets you define PO and WO mappings, enables channels, and writes `orchestrator.yaml` plus `start-orchestrator.sh`.
+The current setup flow is optimized for that layout. Legacy filesystem discovery still works when `workspaces:` is not configured, but the TUI writes the explicit registry format by default.
 
-## How To Run
-
-After setup has written `orchestrator.yaml` and `start-orchestrator.sh`, use these commands from the PO root:
-
-```bash
-# Foreground (recommended for first run / debugging)
-./start-orchestrator.sh --fg
-
-# Background (daemon mode)
-./start-orchestrator.sh
-
-# Re-open setup
-.venv/bin/python -m orchestrator.setup_tui
-
-# View logs
-tail -f /tmp/orchestrator-$(date +%Y%m%d).log
-
-# Stop the background process
-kill $(pgrep -f "orchestrator.main")
-```
-
-```
- Slack / Telegram
-          │
-    ┌─────▼─────┐
-    │  Channel   │  (message receive, confirm gate)
-    │  Adapter   │
-    └─────┬─────┘
-          │
-    ┌─────▼─────┐
-    │   Router   │  (identify target project)
-    └─────┬─────┘
-          │
-    ┌─────▼─────┐
-    │     PO     │  (analyze request → build phased execution plan)
-    └─────┬─────┘
-          │
-    ┌─────▼─────┐
-    │  Executor  │  (phase-by-phase WO execution)
-    │            │
-    │  Phase 1:  │──→ [ws-a] [ws-b]  (parallel)
-    │  Phase 2:  │──→ [ws-c]         (runs after phase 1)
-    └─────┬─────┘
-          │
-    ┌─────▼─────┐
-    │  Task Log  │  (.tasks/ directory, 30-day retention)
-    └─────┬─────┘
-          │
-    ┌─────▼─────┐
-    │  Channel   │  (format and return results)
-    │  Adapter   │
-    └───────────┘
-```
-
----
-
-## Difference from Claude Code's Built-in Channels
-
-Claude Code recently introduced a [Channels feature](https://docs.anthropic.com/en/docs/claude-code/channels) (research preview) — it forwards Telegram/Discord messages to a running CLI session. Here is why Claude-Code-Tunnels is fundamentally different:
-
-| Feature | Claude Code Channels | Claude-Code-Tunnels |
-|---------|---------------------|---------------------|
-| **Architecture** | Single CLI session, single working directory | Always-on server with multi-project orchestration |
-| **Session Model** | Session-dependent (stops when CLI exits) | Background daemon (persists after disconnect) |
-| **Multi-project** | 1 session = 1 project | PO routes to all projects, parallel execution possible |
-| **Workspace Orchestration** | None — simple message bridge | Phase-based dependency analysis, parallel execution, upstream context passing |
-| **Supported Channels** | Telegram, Discord (preview) | **Slack, Telegram** |
-| **Confirm Gate** | None | Built-in: user confirmation required before execution |
-| **Task Log** | None | `.tasks/` auto-logging, 30-day retention |
-| **Remote Workspaces** | Not supported | SSH/kubectl listener for external servers and K8s pods |
-| **Conversation Memory** | Single session context | Per-source sessions (turn history + state machine) |
-| **Add Custom Channel** | Requires `--dangerously-load-development-channels` | Inherit Python `BaseChannel` — add in minutes |
-| **Security Model** | Sender allowlist only | XML tag isolation + path traversal prevention + prompt injection defense |
-| **Runtime** | Requires Bun | Python control plane + Node bridge for `codex` / `opencode` |
-| **Permissions Model** | Interactive prompts block execution | `bypassPermissions` support for unattended operation |
-
-**In short**: Claude Code Channels is a raw message bridge into a single session. Claude-Code-Tunnels is a full orchestration layer — each workspace runs in its own isolated session, and one channel connection scales to any number of projects.
-
----
-
-## Team Collaboration — Shared Channel, Zero Handoff
-
-Traditional setups tie the AI assistant to one person's session. Claude-Code-Tunnels flips this: **the orchestrator lives in the Slack channel, not on anyone's laptop**. Invite the app to a shared channel, invite your teammates — now anyone in the channel can interact with the orchestrator. When you're on vacation, out sick, or simply offline, your team keeps working with full access to every project and workspace.
-```mermaid
-flowchart TB
-    subgraph SLACK["#dev-orchestrator · Slack Channel"]
-        APP["🤖 Orchestrator App<br/><small>always online</small>"]
-        YOU["👤 You<br/><small>on vacation 🏖️</small>"]
-        TM1["👤 Teammate A"]
-        TM2["👤 Teammate B"]
-    end
-
-    TM1 -->|"💬 'Deploy hotfix to staging'"| APP
-    TM2 -->|"💬 'Run tests on backend'"| APP
-    YOU -.->|"offline"| APP
-
-    APP --> PO["🧠 Project Orchestrator"]
-
-    PO --> W1["backend<br/><small>hotfix applied</small>"]
-    PO --> W2["infra/staging<br/><small>deployed</small>"]
-    PO --> W3["backend/tests<br/><small>test suite run</small>"]
-
-    W1 & W2 -->|"results"| TM1
-    W3 -->|"results"| TM2
-
-    style SLACK fill:#F1EFE8,stroke:#5F5E5A
-    style APP fill:#EEEDFE,stroke:#534AB7,color:#3C3489
-    style YOU fill:#FAEEDA,stroke:#854F0B,color:#633806
-    style TM1 fill:#E1F5EE,stroke:#0F6E56,color:#04342C
-    style TM2 fill:#E1F5EE,stroke:#0F6E56,color:#04342C
-    style PO fill:#EEEDFE,stroke:#534AB7,color:#3C3489
-    style W1 fill:#CECBF6,stroke:#534AB7,color:#26215C
-    style W2 fill:#CECBF6,stroke:#534AB7,color:#26215C
-    style W3 fill:#CECBF6,stroke:#534AB7,color:#26215C
-```
-
-**No handoff required.** The orchestrator already knows each workspace's structure through guidance files such as `CLAUDE.md`, `AGENTS.md`, and workspace configuration. A teammate doesn't need your local environment, your CLI session, or your explanation of "how things are set up." They just type a message in the channel.
-
-| Scenario | Without Tunnels | With Tunnels |
-|----------|----------------|--------------|
-| You're on vacation | Team waits or struggles with unfamiliar setup | Team messages the channel, orchestrator handles it |
-| New team member joins | Needs onboarding on every project's tooling | Posts in the channel, gets results immediately |
-| Urgent hotfix at 3 AM | Someone must SSH in and run commands manually | Anyone in the channel triggers the full pipeline |
-| Knowledge transfer | Docs, meetings, shadowing sessions | The orchestrator *is* the institutional knowledge |
-
-> **One app. One channel. The whole team.** The orchestrator doesn't care who's asking — it routes to the right workspace, builds the execution plan, and delegates to WOs. Your team's velocity is no longer bottlenecked by any single person's availability.
-
----
-
-## How Delegation Works
-
-The core value of Claude-Code-Tunnels is **delegation** — even with dozens of projects and workspaces, the PO analyzes a single natural-language request, identifies the right targets, builds a dependency-aware execution plan, and delegates each piece to the appropriate WO. You never have to specify which project or workspace to touch.
-
-Two properties make this scale:
-
-**1. Isolated sessions per workspace.** Every delegation spawns a fresh runtime session with `cwd=workspace/` and loads only that workspace's guidance and local memory. Each WO works with full focus on exactly one workspace — no context bleed between workspaces, no shared state.
-
-**2. Unbounded tree depth.** One channel connection is all you need. Add more projects, add more workspaces inside them, add remote workspaces on other machines — the tree can grow arbitrarily deep. The PO discovers structure at runtime by reading workspace guidance files, so there is very little to reconfigure as the tree grows.
-
-### Delegation Flow
+## Architecture
 
 ```mermaid
-sequenceDiagram
-    actor User
-    participant CH as Channel Adapter
-    participant CG as ConfirmGate
-    participant RT as Router · Sonnet
-    participant PO as PO · Opus
-    participant EX as Executor
-    participant WS as Workspaces
-    participant LOG as Task Log
+flowchart TD
+    U["Slack / Telegram user message"]
+    C["Channel adapter"]
+    G["ConfirmGate"]
+    R["Router"]
+    P["PO"]
+    E["Executor"]
+    W1["WO: backend (codex)"]
+    W2["WO: frontend (claude)"]
+    W3["WO: staging (opencode or remote)"]
+    L["Task log (.tasks/)"]
 
-    User->>CH: 💬 message via Slack / Telegram
-    CH->>CG: register request
-    CG-->>User: "Confirm execution? (yes/cancel)"
-    User->>CG: yes
-
-    CG->>RT: confirmed message
-    RT->>RT: identify target project(s)
-    RT->>PO: project list
-
-    PO->>PO: read workspace guidance → analyze dependencies
-    PO->>EX: phased execution plan
-
-    rect rgb(225, 245, 238)
-        Note over EX,WS: Phase 1 · parallel
-        EX->>WS: spawn session (cwd: ws-a/, .claude/ injected)
-        EX->>WS: spawn session (cwd: ws-b/, .claude/ injected)
-        WS-->>EX: results a, b
-    end
-
-    rect rgb(230, 241, 251)
-        Note over EX,WS: Phase 2 · with upstream context from Phase 1
-        EX->>WS: spawn session (cwd: ws-c/, .claude/ + upstream context)
-        WS-->>EX: result c
-    end
-
-    rect rgb(250, 238, 218)
-        Note over EX,WS: Phase 3 · parallel
-        EX->>WS: spawn session (cwd: ws-d/)
-        EX->>WS: spawn session (cwd: ws-e/)
-        WS-->>EX: results d, e
-    end
-
-    EX->>LOG: write to .tasks/{date}/{project}/
-    LOG-->>CH: formatted results
-    CH-->>User: 📤 results via channel
+    U --> C --> G --> R --> P --> E
+    E --> W1
+    E --> W2
+    E --> W3
+    W1 --> L
+    W2 --> L
+    W3 --> L
+    L --> C
 ```
-
-> **Key insight**: Phase 1 workspaces run **in parallel**. Phase 2 waits for Phase 1 to complete and receives its results as **upstream context**. This means downstream workspaces always have the full picture of what changed upstream.
-
-### Workspace Structure
-
-The PO delegates across multiple projects and workspaces. Each project contains independent workspaces that can be targeted individually or as a group:
-
-```mermaid
-graph TB
-    PO["🧠 Project Orchestrator"]
-
-    subgraph PA["project-alpha"]
-        PA_BE["backend<br/><small>API, auth</small>"]
-        PA_FE["frontend<br/><small>UI, auth-ui</small>"]
-        PA_INFRA["infra<br/><small>staging, CD</small>"]
-        PA_DB["db<br/><small>migrations</small>"]
-        PA_QA["qa<br/><small>integration, e2e</small>"]
-    end
-
-    subgraph PB["project-beta"]
-        PB_API["api-server<br/><small>REST endpoints</small>"]
-        PB_WORKER["worker<br/><small>Background jobs</small>"]
-        PB_CFG["shared-config"]
-    end
-
-    subgraph SL["shared-lib"]
-        SL_CORE["core<br/><small>Utility v2</small>"]
-        SL_TYPES["types<br/><small>TS definitions</small>"]
-    end
-
-    subgraph REMOTE["remote workspaces ☁️"]
-        R_K8S["k8s-staging<br/><small>kubectl listener</small>"]
-        R_HOST["remote-host-a<br/><small>SSH listener:9100</small>"]
-    end
-
-    PO -->|"delegate"| PA
-    PO -->|"delegate"| PB
-    PO -->|"delegate"| SL
-    PO -->|"delegate via HTTP"| REMOTE
-
-    SL_CORE -.->|"imports"| PA_BE
-    SL_CORE -.->|"imports"| PB_API
-
-    style PA fill:#E1F5EE,stroke:#0F6E56
-    style PB fill:#E6F1FB,stroke:#185FA5
-    style SL fill:#FAECE7,stroke:#993C1D
-    style REMOTE fill:#FAEEDA,stroke:#854F0B
-    style PO fill:#EEEDFE,stroke:#534AB7
-```
-
-### Delegation Scenarios
-
-Below are four real-world scenarios showing how a single message gets decomposed into phased, dependency-aware workspace tasks.
-
-#### Scenario 1 — Multi-project deployment
-
-> **Slack**: _"Add an auth module to the backend API, integrate the login UI on the frontend, then deploy to staging"_
-
-```mermaid
-flowchart LR
-    subgraph "Phase 1 · parallel"
-        A1["backend/auth<br/><small>JWT auth module</small>"]
-        A2["backend/api<br/><small>apply auth guard</small>"]
-    end
-
-    subgraph "Phase 2 · sequential"
-        B1["frontend/auth-ui<br/><small>login page, token management</small>"]
-    end
-
-    subgraph "Phase 3 · parallel"
-        C1["infra/staging<br/><small>Docker build, deploy</small>"]
-        C2["infra/monitoring<br/><small>health check, alert setup</small>"]
-    end
-
-    A1 & A2 -->|"upstream context"| B1
-    B1 -->|"build output"| C1 & C2
-
-    style A1 fill:#E1F5EE,stroke:#0F6E56
-    style A2 fill:#E1F5EE,stroke:#0F6E56
-    style B1 fill:#E6F1FB,stroke:#185FA5
-    style C1 fill:#FAEEDA,stroke:#854F0B
-    style C2 fill:#FAEEDA,stroke:#854F0B
-```
-
-| Phase | Mode | Workspaces | What happens |
-|-------|------|------------|-------------|
-| 1 | **Parallel** | `backend/auth`, `backend/api` | JWT module + guard applied simultaneously |
-| 2 | Sequential | `frontend/auth-ui` | Receives Phase 1 API changes as context |
-| 3 | **Parallel** | `infra/staging`, `infra/monitoring` | Deploy + monitoring setup after frontend ready |
-
-#### Scenario 2 — Cross-project refactoring
-
-> **Telegram**: _"Upgrade the shared utility library to v2 and run tests across all dependent projects"_
-
-```mermaid
-flowchart LR
-    subgraph "Phase 1 · sequential"
-        A["shared-lib/core<br/><small>v2 migration, breaking changes</small>"]
-    end
-
-    subgraph "Phase 2 · parallel"
-        B1["project-alpha/backend<br/><small>apply v2, fix imports</small>"]
-        B2["project-alpha/frontend<br/><small>apply v2, fix type errors</small>"]
-        B3["project-beta/api-server<br/><small>apply v2, compatibility patch</small>"]
-    end
-
-    subgraph "Phase 3 · parallel"
-        C1["project-alpha/backend<br/><small>unit + integration tests</small>"]
-        C2["project-alpha/frontend<br/><small>E2E tests</small>"]
-        C3["project-beta/api-server<br/><small>full test suite</small>"]
-    end
-
-    A -->|"change list"| B1 & B2 & B3
-    B1 --> C1
-    B2 --> C2
-    B3 --> C3
-
-    style A fill:#FAECE7,stroke:#993C1D
-    style B1 fill:#E6F1FB,stroke:#185FA5
-    style B2 fill:#E6F1FB,stroke:#185FA5
-    style B3 fill:#E6F1FB,stroke:#185FA5
-    style C1 fill:#FAEEDA,stroke:#854F0B
-    style C2 fill:#FAEEDA,stroke:#854F0B
-    style C3 fill:#FAEEDA,stroke:#854F0B
-```
-
-The PO identifies that `shared-lib` must be updated **first**, then fans out to all dependent projects **in parallel**, and finally runs each project's test suite.
-
-#### Scenario 3 — Remote workspace orchestration
-
-> **Telegram**: _"Update the main server API and apply the changes to the K8s staging pod"_
-
-```mermaid
-flowchart LR
-    subgraph "Phase 1 · local"
-        A["main-server/api<br/><small>endpoint changes, schema migration</small>"]
-    end
-
-    subgraph "Phase 2 · remote (kubectl)"
-        B["k8s-staging/deploy<br/><small>image build, rolling update</small>"]
-    end
-
-    subgraph "Phase 3 · mixed"
-        C1["k8s-staging/smoke-test ☁️<br/><small>health check, smoke tests</small>"]
-        C2["main-server/docs<br/><small>auto-update API docs</small>"]
-    end
-
-    A -->|"HTTP → remote listener"| B
-    B -->|"deploy confirmed"| C1 & C2
-
-    style A fill:#E1F5EE,stroke:#0F6E56
-    style B fill:#E6F1FB,stroke:#185FA5
-    style C1 fill:#FAEEDA,stroke:#854F0B
-    style C2 fill:#FAEEDA,stroke:#854F0B
-```
-
-Remote workspaces are delegated over HTTP — the executor sends tasks to a lightweight listener running on the remote host or K8s pod, which executes the configured runtime locally.
-
-#### Scenario 4 — 4-phase complex pipeline
-
-> **Slack**: _"DB schema change → backend migration → frontend update → full integration tests"_
-
-```mermaid
-flowchart TB
-    subgraph "Phase 1"
-        A["db/migrations<br/><small>schema change SQL, rollback scripts</small>"]
-    end
-
-    subgraph "Phase 2 · parallel"
-        B1["backend/models<br/><small>update ORM models</small>"]
-        B2["backend/api<br/><small>response DTOs, serializers</small>"]
-    end
-
-    subgraph "Phase 3"
-        C["frontend/data<br/><small>regenerate API client, update components</small>"]
-    end
-
-    subgraph "Phase 4 · parallel"
-        D1["qa/integration<br/><small>integration test suite</small>"]
-        D2["qa/e2e<br/><small>E2E scenario tests</small>"]
-    end
-
-    A -->|"migration result"| B1 & B2
-    B1 & B2 -->|"API changes"| C
-    C -->|"full integration"| D1 & D2
-
-    style A fill:#E1F5EE,stroke:#0F6E56
-    style B1 fill:#E6F1FB,stroke:#185FA5
-    style B2 fill:#E6F1FB,stroke:#185FA5
-    style C fill:#FAEEDA,stroke:#854F0B
-    style D1 fill:#FCEBEB,stroke:#A32D2D
-    style D2 fill:#FCEBEB,stroke:#A32D2D
-```
-
-Each phase strictly depends on the previous one. The PO ensures that no workspace starts until its upstream dependencies are fully resolved and their context is passed down.
-
----
 
 ## Quick Start
 
@@ -419,318 +75,389 @@ cd claude-code-tunnels
 ./start-orchestrator.sh --fg
 ```
 
-The setup TUI guides you through:
-1. Checking whether the current folder already looks like a PO root
-2. Suggesting PO root, ARCHIVE path, and workspace candidates
-3. Defining WOs for each selected workspace
-4. Choosing channel enablement and runtime defaults
-5. Writing `orchestrator.yaml` and `start-orchestrator.sh`
-6. Showing the exact foreground and background start commands
+## Setup Flow
 
----
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `.venv/bin/python -m orchestrator.setup_tui` | Full-screen setup wizard — classify current folder, suggest workspaces, define WOs, and write config |
-| `/setup-orchestrator` | Plugin skill shortcut that launches the setup TUI workflow |
-| `/connect-slack` | Add a Slack channel to an existing orchestrator |
-| `/connect-telegram` | Add a Telegram channel to an existing orchestrator |
-| `/setup-remote-project` | Deploy listener to remote host (SSH/kubectl) to access remote projects |
-| `/setup-remote-workspace` | Connect a specific remote workspace to the orchestrator |
-
----
-
-## Architecture
-
-### Component Structure
-
-```
-your-projects/
-├── orchestrator/                 # Core engine
-│   ├── __init__.py              # Config loading, JSON extraction
-│   ├── main.py                  # Entry point (starts enabled channels)
-│   ├── server.py                # ConfirmGate, handle_request, format_results
-│   ├── router.py                # Lightweight project identification (Sonnet)
-│   ├── po.py                    # Execution plan generation (Opus)
-│   ├── executor.py              # Phase-by-phase workspace execution
-│   ├── direct_handler.py        # Non-project task handling (customizable)
-│   ├── task_log.py              # .tasks/ logging and archival
-│   ├── sanitize.py              # Prompt injection defense
-│   ├── http_api.py              # External HTTP gateway
-│   ├── channel/
-│   │   ├── base.py              # Abstract channel + session state machine
-│   │   ├── session.py           # Per-source conversation tracking
-│   │   ├── slack.py             # Slack Socket Mode + Web API
-│   │   └── telegram.py          # Telegram long polling + Bot API
-│   └── remote/
-│       ├── listener.py          # HTTP listener for remote workspaces
-│       └── deploy.py            # SSH/kubectl deployment helper
-├── orchestrator.yaml             # Configuration file
-├── start-orchestrator.sh         # Start script
-├── ARCHIVE/                      # Credentials (never commit)
-├── .tasks/                       # Execution logs (auto-generated)
-├── .claude/rules/                # Orchestrator behavior rules
-├── CLAUDE.md                     # Project-level instructions
-├── project-a/                    # Project folder
-│   ├── CLAUDE.md
-│   └── workspace-1/
-└── project-b/
-    └── ...
-```
-
-### Agent Model Strategy
-
-| Agent | Model | Max Turns | Role |
-|-------|-------|-----------|------|
-| Router | Sonnet | 8 | Fast project identification |
-| PO | Opus | 15 | Deep planning with dependency analysis |
-| Executor | Default | 5 | Full workspace code modification |
-| DirectHandler | Sonnet | 30 | Handle other tasks (outside workspaces) |
-| JSON Repair | Haiku | 1 | Cost-efficient malformed JSON recovery |
-
-### Session State Machine (2-Step Confirmation)
-
-```mermaid
-stateDiagram-v2
-    [*] --> IDLE
-
-    IDLE --> PENDING_CONFIRM : user message → create_request()
-
-    state PENDING_CONFIRM {
-        direction LR
-        [*] --> wait_1st : 1st confirm\n"Did I understand correctly?"
-    }
-
-    PENDING_CONFIRM --> IDLE : "cancel"
-    PENDING_CONFIRM --> IDLE : other text → treat as new request
-    PENDING_CONFIRM --> IDLE : "yes" → clarification_needed
-
-    PENDING_CONFIRM --> AWAITING_FOLLOWUP : "yes" → direct_answer\n(no code change)
-    PENDING_CONFIRM --> AWAITING_FOLLOWUP : "yes" → direct_request\n(execute immediately)
-
-    PENDING_CONFIRM --> PENDING_EXEC_CONFIRM : "yes" → planned\n(workspace modification)
-
-    state PENDING_EXEC_CONFIRM {
-        direction LR
-        [*] --> wait_2nd : 2nd confirm\nshow execution plan
-    }
-
-    PENDING_EXEC_CONFIRM --> EXECUTING : "yes" → execute plan
-    PENDING_EXEC_CONFIRM --> IDLE : "cancel" → discard plan
-    PENDING_EXEC_CONFIRM --> IDLE : other text → discard plan
-
-    EXECUTING --> AWAITING_FOLLOWUP : results sent
-
-    AWAITING_FOLLOWUP --> IDLE : "done" / "end" → reset session
-    AWAITING_FOLLOWUP --> IDLE : other text → new request\n(context retained)
-```
-
-The 2-step confirmation ensures that:
-- **1st confirm** (`PENDING_CONFIRM`): User verifies the request was understood correctly
-- **2nd confirm** (`PENDING_EXEC_CONFIRM`, workspace modifications only): User reviews the execution plan before code changes are made
-- Non-modifying requests (`direct_answer`, `direct_request`) skip the 2nd confirm and go straight to `AWAITING_FOLLOWUP`
-
-### Execution Flow
-
-1. **Message Received** — delivered via channel adapter (Slack/Telegram)
-2. **ConfirmGate** — register request, ask user for confirmation
-3. **Router** (Sonnet) — identify target project
-4. **PO** (Opus) — understand project structure, build phased execution plan
-5. **Executor** — run workspaces (parallel within phase, sequential between phases)
-6. **Upstream Context** — pass completed phase results to downstream workspaces
-7. **Task Log** — record everything in `.tasks/{date}/{project}/`
-8. **Return Results** — format and send back to channel
-
----
-
-## Remote Workspaces
-
-Use remote workspaces when your project lives on a different server or Kubernetes pod:
-
-```
-                  Orchestrator Host
-                  ┌─────────────┐
-                  │  Executor   │
-                  │             │──── HTTP ────→ Remote Host A
-                  │  query(cwd=)│               ┌──────────┐
-                  │  local      │               │ Listener  │
-                  │  workspaces │               │ port 9100 │
-                  │             │               └──────────┘
-                  │             │──── HTTP ────→ K8s Pod B
-                  └─────────────┘               ┌──────────┐
-                                                │ Listener  │
-                                                │ port 9100 │
-                                                └──────────┘
-```
-
-### Setup
+The setup TUI is the main entry point:
 
 ```bash
-# Via SSH
-/setup-remote-project
-# → Enter: host, user, remote path, port
-
-# Via kubectl
-/setup-remote-workspace
-# → Enter: pod, namespace, remote path, port
+.venv/bin/python -m orchestrator.setup_tui
 ```
 
-The listener is a lightweight HTTP server that receives tasks and runs the configured runtime on the remote server. Remote host requirements:
-- Python 3.10+
-- `claude-agent-sdk` and `aiohttp` for `claude`
-- `codex` CLI for `codex`
-- `opencode` CLI plus provider credentials for `opencode`
+It performs these steps:
 
-### Configuration
+1. Checks the current folder and classifies it as:
+   - `existing_po`
+   - `new_po_candidate`
+   - `workspace_candidate`
+   - `unknown`
+2. Suggests:
+   - `PO root`
+   - `ARCHIVE` path
+   - workspace candidates
+3. Lets you define one `WO` per selected workspace:
+   - workspace id
+   - relative path
+   - runtime
+   - local or remote mode
+4. Lets you choose:
+   - global default runtime
+   - executor runtime
+   - Slack enablement
+   - Telegram enablement
+5. Writes:
+   - `orchestrator.yaml`
+   - `start-orchestrator.sh`
+   - `CLAUDE.md` when missing
+   - `AGENTS.md` when missing
+6. Shows the exact run commands for foreground and background execution
 
-Register remote workspaces in `orchestrator.yaml`:
+### Folder Heuristics
 
-```yaml
-remote_workspaces:
-  - name: my-project/backend    # workspace identifier
-    host: 10.0.0.5              # remote host (or pod IP)
-    port: 9100                  # listener port
-    token: ""                   # optional auth token
+The TUI uses these rules:
+
+- `existing_po`: at least two of `orchestrator.yaml`, `orchestrator/`, `start-orchestrator.sh`, `ARCHIVE/`, `.tasks/` exist
+- `new_po_candidate`: multiple visible child directories exist and the current folder does not strongly look like a single codebase
+- `workspace_candidate`: the current folder contains codebase markers such as `.git`, `package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`, or `requirements.txt`
+- `unknown`: neither side is strongly implied
+
+## How To Run
+
+After setup has written `orchestrator.yaml` and `start-orchestrator.sh`, run from the `PO` root:
+
+```bash
+# Foreground, recommended for first run or debugging
+./start-orchestrator.sh --fg
+
+# Background daemon mode
+./start-orchestrator.sh
+
+# Re-open setup
+.venv/bin/python -m orchestrator.setup_tui
+
+# Follow logs
+tail -f /tmp/orchestrator-$(date +%Y%m%d).log
+
+# Stop background execution
+kill $(pgrep -f "orchestrator.main")
 ```
 
----
+## Runtime Model
 
-## Channel Setup Guide
+### Supported Runtimes
 
-### Slack
+| Runtime | Local implementation | Typical use |
+|---------|----------------------|-------------|
+| `claude` | Python `claude-agent-sdk` | Default routing, planning, repair, general execution |
+| `codex` | Node bridge + `@openai/codex-sdk` | Workspace execution with Codex |
+| `opencode` | Node bridge + `@opencode-ai/sdk` | Workspace execution with OpenCode |
 
-1. Create app at [api.slack.com/apps](https://api.slack.com/apps)
-2. Enable **Socket Mode** → generate app-level token (`xapp-...`)
-3. Subscribe to events: `message.channels`, `app_mention`
-4. Bot scopes: `chat:write`, `channels:history`, `app_mentions:read`
-5. Install to workspace, copy Bot Token (`xoxb-...`)
-6. Run `/connect-slack` and enter credentials
+### Default Role Mapping
 
-### Telegram
+| Role | Default runtime | Max turns |
+|------|-----------------|-----------|
+| Router | `claude` | 8 |
+| Planner (`PO`) | `claude` | 15 |
+| Executor | `claude` | 5 |
+| Direct handler | `claude` | 30 |
+| JSON repair | `claude` | 1 |
 
-1. Open [@BotFather](https://t.me/botfather) on Telegram
-2. Send `/newbot` and follow the prompts
-3. Copy the bot token
-4. Run `/connect-telegram` and enter the token
+### Runtime Resolution Order
 
----
+Runtime selection follows this order:
 
-## Configuration File Reference
+1. `workspaces[].wo.runtime`
+2. `runtime.roles[role]`
+3. `runtime.default`
+4. fallback `claude`
 
-`orchestrator.yaml`:
+### Runtime Notes
+
+- `claude` uses `CLAUDE.md` and `.claude/`
+- `codex` is expected to use `AGENTS.md`
+- `opencode` requires provider credentials and can also work with `AGENTS.md`-style guidance
+- the local multi-runtime bridge is persistent and communicates with Python over stdio JSON messages
+- the remote listener is standalone and uses the local runtime available on that host
+
+## Configuration
+
+The setup TUI writes `orchestrator.yaml` in this shape:
 
 ```yaml
-# Project root — directory containing your projects
-root: /home/user/my-projects
+root: /path/to/po-root
+archive: /path/to/po-root/ARCHIVE
 
-# Credential storage path (never commit)
-archive: /home/user/my-projects/ARCHIVE
+runtime:
+  default: claude
+  roles:
+    router: claude
+    planner: claude
+    executor: codex
+    direct_handler: claude
+    repair: claude
 
-# Channel configuration
 channels:
   slack:
-    enabled: false
+    enabled: true
   telegram:
     enabled: false
 
-# Remote workspaces
+workspaces:
+  - id: backend
+    path: backend
+    wo:
+      runtime: codex
+      mode: local
+
+  - id: staging
+    path: services/staging
+    wo:
+      runtime: opencode
+      mode: remote
+      remote:
+        host: 10.0.0.5
+        port: 9100
+        token: ""
+
 remote_workspaces:
-  - name: project/workspace
+  - name: staging
     host: 10.0.0.5
     port: 9100
     token: ""
+    runtime: opencode
 ```
 
----
+### Key Fields
 
-## Credential File Format
+- `root`: the `PO` root
+- `archive`: credential storage path
+- `runtime.default`: default runtime for roles without explicit overrides
+- `runtime.roles`: per-role runtime overrides
+- `workspaces[].id`: workspace identifier used by the planner and executor
+- `workspaces[].path`: actual workspace path relative to `root`
+- `workspaces[].wo.runtime`: runtime for that workspace
+- `workspaces[].wo.mode`: `local` or `remote`
+- `workspaces[].wo.remote`: remote listener connection information
+- `remote_workspaces`: legacy compatibility projection used by older lookup paths
 
-All credential files use `key : value` format (space on both sides of colon):
+## Execution Flow
 
+The request lifecycle is:
+
+1. Message received through Slack or Telegram
+2. `ConfirmGate` stores the pending request
+3. User confirms intent
+4. Router identifies the target project or switches to direct handling
+5. `PO` builds phased execution
+6. Executor runs each phase:
+   - parallel within a phase
+   - sequential across phases
+7. completed phase summaries become upstream context for downstream workspaces
+8. results are written to `.tasks/`
+9. formatted results are sent back to the channel
+
+### Two-Step Confirmation
+
+- first confirmation: confirm the request interpretation
+- second confirmation: only for workspace-modifying planned executions
+- direct answers and direct requests skip the second confirmation
+
+## Remote Workspaces
+
+Remote workspaces are executed through the HTTP listener in `orchestrator/remote/listener.py`.
+
+### Listener Environment
+
+The listener accepts:
+
+- `LISTENER_CWD`
+- `LISTENER_PORT`
+- `LISTENER_TOKEN`
+- `LISTENER_RUNTIME`
+
+### Remote Host Requirements
+
+- Python 3.10+
+- `claude-agent-sdk` and `aiohttp` if using `claude`
+- `codex` CLI if using `codex`
+- `opencode` CLI plus provider credentials if using `opencode`
+
+### Remote Setup
+
+You can use the existing setup skills:
+
+- `/setup-remote-project`
+- `/setup-remote-workspace`
+
+The deploy helper supports both SSH and `kubectl` paths through `orchestrator/remote/deploy.py`.
+
+## Channel Setup
+
+### Slack
+
+Slack support exists in `orchestrator/channel/slack.py`, but the required Slack libraries are optional.
+
+Install them if you want Slack support:
+
+```bash
+.venv/bin/pip install slack-bolt slack-sdk
 ```
-# ARCHIVE/slack/credentials
-app_id : A012345
-client_id : 123456.789012
-client_secret : your-secret
+
+Then:
+
+1. create a Slack app at [api.slack.com/apps](https://api.slack.com/apps)
+2. enable Socket Mode
+3. generate an app-level token with `connections:write`
+4. add bot scopes:
+   - `chat:write`
+   - `channels:history`
+   - `groups:history`
+   - `im:history`
+   - `mpim:history`
+   - `app_mentions:read`
+5. subscribe to bot events:
+   - `message.channels`
+   - `message.groups`
+   - `message.im`
+   - `app_mention`
+6. install the app to the workspace
+7. write credentials into `ARCHIVE/slack/credentials`
+
+Example credential file:
+
+```text
+app_id : A0XXXXXXXXX
+client_id : 1234567890.9876543210
+client_secret : your-client-secret
 signing_secret : your-signing-secret
-app_level_token : xapp-1-xxx
-bot_token : xoxb-xxx
+app_level_token : xapp-1-XXXXXXXXXXX
+bot_token : xoxb-XXXXXXXXXXX
+```
 
-# ARCHIVE/telegram/credentials
-bot_token : 123456:ABC-DEF1234
+### Telegram
+
+Telegram support is implemented in `orchestrator/channel/telegram.py`.
+
+1. create a bot with [@BotFather](https://t.me/botfather)
+2. write `ARCHIVE/telegram/credentials`
+
+Example credential file:
+
+```text
+bot_token : 123456789:ABCdefGHIjklMNOpqrsTUVwxyz
 allowed_users : username1, username2
 ```
 
----
+3. enable Telegram in `orchestrator.yaml`
 
-## Security Model
+## Guidance Files
 
-1. **XML Tag Isolation**: User input wrapped in `<user_message>` tags; system prompt explicitly ignores instructions inside that tag
-2. **Filesystem Validation**: Only actual project/workspace directories allowed
-3. **Path Traversal Prevention**: Rejects names containing `/`, `\`, `..`
-4. **Sensitive Directory Blocking**: `ARCHIVE/`, `.tasks/`, `.git/`, `.claude/` excluded from task targets
-5. **Workspace Sandboxing**: Each executor agent restricted to its workspace via `cwd=`
+Workspace behavior is controlled by runtime-specific guidance files:
 
----
+- `CLAUDE.md` for Claude-oriented workflows
+- `AGENTS.md` for Codex and OpenCode-oriented workflows
+- `.claude/` for existing Claude project memory and rules
+
+The setup flow creates root-level `CLAUDE.md` and `AGENTS.md` when they are missing. Workspace-level guidance remains under your control.
+
+## Repository Layout
+
+```text
+claude-code-tunnels/
+├── orchestrator/
+│   ├── main.py
+│   ├── server.py
+│   ├── router.py
+│   ├── po.py
+│   ├── executor.py
+│   ├── direct_handler.py
+│   ├── task_log.py
+│   ├── setup_tui.py
+│   ├── setup_support.py
+│   ├── runtime/
+│   │   ├── __init__.py
+│   │   └── bridge.py
+│   ├── channel/
+│   │   ├── slack.py
+│   │   └── telegram.py
+│   └── remote/
+│       ├── listener.py
+│       └── deploy.py
+├── bridge/
+│   ├── daemon.mjs
+│   ├── lib/runtime.mjs
+│   └── tests/runtime.test.mjs
+├── templates/
+├── skills/
+├── install.sh
+├── package.json
+├── requirements.txt
+└── requirements-dev.txt
+```
 
 ## Customization
 
 ### Add a Custom Channel
 
-Inherit from `BaseChannel`:
+Inherit from `BaseChannel` in `orchestrator/channel/base.py`, then register it in `orchestrator/main.py`.
 
-```python
-from orchestrator.channel.base import BaseChannel
+### Customize Direct Handling
 
-class MyChannel(BaseChannel):
-    channel_name = "mychannel"
+Adjust the system prompt in `orchestrator/direct_handler.py` to integrate your own internal tools or policies.
 
-    async def _send(self, callback_info, text):
-        # Send message however you like
-        ...
+### Customize Runtime Behavior
 
-    async def start(self):
-        # Start receiving messages
-        ...
+Adjust workspace guidance files and runtime selections in `orchestrator.yaml`. Executor output is expected to end in structured JSON with `changed_files`, `summary`, `test_result`, and `downstream_context`.
 
-    async def stop(self):
-        # Cleanup
-        ...
+## Security Model
+
+- user-controlled input is isolated inside XML-like tags
+- workspace and project identifiers are validated before execution
+- blocked directories include `ARCHIVE`, `.tasks`, `orchestrator`, `.claude`, and `.git`
+- each local workspace execution is restricted by `cwd`
+- channel execution is guarded by confirmation state
+
+## Development And Testing
+
+Bootstrap dependencies:
+
+```bash
+./install.sh
 ```
 
-Register in `main.py`:
-```python
-my_ch = MyChannel(confirm_gate)
-register_channel("mychannel", my_ch)
+Run tests:
+
+```bash
+# ensure a working node/npm installation is first on PATH
+node --test
+.venv/bin/python -m pytest orchestrator/tests -q
 ```
 
-### Customize the Direct Handler
+What is currently covered:
 
-Modify the system prompt in `orchestrator/direct_handler.py` to integrate your organization's tools and APIs (Jira, Confluence, monitoring, etc.).
-
-### Customize Workspace Behavior
-
-Control WO behavior via each workspace's guidance files. `CLAUDE.md` still works for Claude, and `AGENTS.md` is available for Codex and OpenCode-oriented workflows. Add build commands, test instructions, coding conventions, and runtime notes there.
-
----
+- runtime resolution
+- executor behavior
+- task log output
+- setup helper rendering
+- setup TUI write path
+- remote listener helpers
+- Node bridge helper logic
 
 ## Dependencies
 
-| Package | Required | When |
-|---------|----------|------|
-| `claude-agent-sdk` | Always | Core orchestration |
-| `aiohttp` | Always | HTTP server/client |
-| `pyyaml` | Always | Config file loading |
-| `textual` | During setup | Setup TUI |
-| `@openai/codex-sdk` | If using Codex | Node bridge runtime |
-| `@opencode-ai/sdk` | If using OpenCode | Node bridge runtime |
-| `slack-bolt` + `slack-sdk` | If using Slack | Socket Mode |
+### Python
 
-Telegram uses `aiohttp` (already a required dependency).
+- `claude-agent-sdk`
+- `aiohttp`
+- `pyyaml`
+- `requests`
+- `textual`
+- `pytest`
+- `pytest-asyncio`
 
----
+### Node
+
+- `@openai/codex-sdk`
+- `@opencode-ai/sdk`
 
 ## License
 
