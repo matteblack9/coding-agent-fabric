@@ -16,6 +16,12 @@ def test_build_prompt_wraps_task_and_upstream_context():
     assert "deploy it" in prompt
 
 
+def test_extract_cursor_text_from_json_returns_result():
+    raw = '{"type":"result","subtype":"success","is_error":false,"result":"done"}'
+
+    assert listener._extract_cursor_text_from_json(raw) == "done"
+
+
 @pytest.mark.asyncio
 async def test_health_reports_listener_runtime(monkeypatch):
     monkeypatch.setattr(listener, "LISTENER_RUNTIME", "codex")

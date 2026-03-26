@@ -13,6 +13,7 @@ This directory is the Project Orchestrator root. It coordinates Workspaces and W
 ## Runtime Notes
 
 - `claude` reads `CLAUDE.md` and `.claude/`
+- `cursor` reads `.cursor/rules`, also supports `AGENTS.md`, `CLAUDE.md`, and legacy `.cursorrules`
 - `codex` reads `AGENTS.md`
 - `opencode` reads `AGENTS.md`, can also use `opencode.json` and `.opencode/skills/`
 - `opencode` may fall back to `CLAUDE.md` and `.claude/` when those already exist

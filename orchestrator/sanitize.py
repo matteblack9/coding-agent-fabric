@@ -14,7 +14,7 @@ def wrap_user_input(text: str, label: str = "user_message") -> str:
 
 def validate_project_name(name: str, base_dir: Path) -> bool:
     """Validate that project name corresponds to a real directory and is not a sensitive path."""
-    BLOCKED = {"ARCHIVE", ".tasks", "orchestrator", ".claude", ".opencode", ".git"}
+    BLOCKED = {"ARCHIVE", ".tasks", "orchestrator", ".claude", ".cursor", ".opencode", ".git"}
 
     if name in BLOCKED:
         return False
@@ -28,7 +28,7 @@ def validate_project_name(name: str, base_dir: Path) -> bool:
 
 def validate_workspace_name(name: str, project_dir: Path) -> bool:
     """Validate that workspace name corresponds to a real directory under the project."""
-    BLOCKED = {".claude", ".opencode", ".git", ".tasks", "ARCHIVE"}
+    BLOCKED = {".claude", ".cursor", ".opencode", ".git", ".tasks", "ARCHIVE"}
 
     if name in BLOCKED:
         return False

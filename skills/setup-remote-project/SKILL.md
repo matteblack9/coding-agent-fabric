@@ -8,15 +8,14 @@ description: "Deploys a listener to a remote machine (SSH/kubectl) so the Orches
 Deploys a lightweight HTTP listener to a remote machine (SSH) or Kubernetes Pod,
 allowing the Orchestrator to use the remote environment's project as a workspace.
 
-Key point: `claude-agent-sdk query(cwd=)` has no timeout. Because the listener calls the SDK directly on the remote machine,
-tasks run without time limits, just as they would locally.
+Key point: the listener runs directly on the remote machine. Claude uses `claude-agent-sdk query(cwd=)`, while Cursor/Codex/OpenCode use their local CLIs there, so tasks run against the remote workspace just as they would locally.
 
 ## Rules
 
 - **Never proceed without asking the user**
 - **Auto-detected values are presented as numbered choices first** — the user only needs to enter a number
 - One listener per workspace (multiple workspaces on the same host → use different ports)
-- The remote workspace should expose guidance the PO can inspect: `AGENTS.md` for Codex/OpenCode, `CLAUDE.md` or `.claude/` for Claude, and `opencode.json`/`.opencode/` when OpenCode-specific config is needed
+- The remote workspace should expose guidance the PO can inspect: `AGENTS.md` for Cursor/Codex/OpenCode, `.cursor/rules` or `.cursorrules` for Cursor, `CLAUDE.md` or `.claude/` for Claude, and `opencode.json`/`.opencode/` when OpenCode-specific config is needed
 - The listener must run continuously (nohup by default, systemd/supervisord recommended)
 
 ---
@@ -239,7 +238,7 @@ Number:
 
 ## Step 3: Remote Environment Pre-check (CRITICAL)
 
-**Why it is needed**: the listener uses Python + claude-agent-sdk + aiohttp on the remote machine. If any of these is missing, execution will fail.
+**Why it is needed**: the listener uses Python + aiohttp on the remote machine, plus runtime-specific executors such as `claude-agent-sdk` for Claude or `cursor-agent` / `codex` / `opencode` CLIs for the other runtimes. If the selected runtime is missing, execution will fail.
 
 ```bash
 # Check remote Python

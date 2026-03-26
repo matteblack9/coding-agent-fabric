@@ -21,7 +21,7 @@ from orchestrator.setup_support import (
     write_setup_files,
 )
 
-RUNTIME_OPTIONS = [("claude", "claude"), ("codex", "codex"), ("opencode", "opencode")]
+RUNTIME_OPTIONS = [("claude", "claude"), ("cursor", "cursor"), ("codex", "codex"), ("opencode", "opencode")]
 MODE_OPTIONS = [("local", "local"), ("remote", "remote")]
 
 

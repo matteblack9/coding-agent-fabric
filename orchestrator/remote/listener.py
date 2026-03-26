@@ -1,8 +1,8 @@
 """Remote workspace listener for executing workspace tasks over HTTP.
 
 This script is intentionally standalone so it can be copied to a remote host
-without the full repository. Claude uses the Python SDK directly; Codex and
-OpenCode use their local CLIs on the remote machine.
+without the full repository. Claude uses the Python SDK directly; Cursor,
+Codex, and OpenCode use their local CLIs on the remote machine.
 
 Run:
   LISTENER_CWD=/path/to/workspace LISTENER_PORT=9100 python3 listener.py
@@ -144,13 +144,17 @@ async def run_claude(prompt: str) -> str:
 
 
 def _run_subprocess(command: list[str]) -> str:
-    proc = subprocess.run(
-        command,
-        cwd=str(WORKSPACE_CWD),
-        capture_output=True,
-        text=True,
-        timeout=None,
-    )
+    try:
+        proc = subprocess.run(
+            command,
+            cwd=str(WORKSPACE_CWD),
+            capture_output=True,
+            text=True,
+            timeout=None,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"{command[0]} not found on the remote host.") from exc
+
     stdout = (proc.stdout or "").strip()
     stderr = (proc.stderr or "").strip()
     if proc.returncode != 0:
@@ -179,6 +183,59 @@ def run_codex(prompt: str) -> str:
         ]
         _run_subprocess(command)
         return output_path.read_text(encoding="utf-8").strip()
+
+
+def _extract_cursor_text_from_json(raw: str) -> str:
+    text = (raw or "").strip()
+    if not text:
+        return ""
+
+    payloads: list[dict] = []
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, dict):
+            payloads = [parsed]
+        elif isinstance(parsed, list):
+            payloads = [item for item in parsed if isinstance(item, dict)]
+    except json.JSONDecodeError:
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(payload, dict):
+                payloads.append(payload)
+
+    if not payloads:
+        return text
+
+    for payload in reversed(payloads):
+        if payload.get("is_error"):
+            message = payload.get("error") or payload.get("message") or payload.get("result")
+            raise RuntimeError(str(message or "Cursor CLI returned an error."))
+        for key in ("result", "text", "message"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+
+    return text
+
+
+def run_cursor(prompt: str) -> str:
+    """Execute the remote task with the Cursor CLI."""
+    command = [
+        "cursor-agent",
+        "--print",
+        "--output-format",
+        "json",
+        "--force",
+        prompt,
+    ]
+    stdout = _run_subprocess(command)
+    return _extract_cursor_text_from_json(stdout) or stdout
 
 
 def _extract_text_from_json_events(raw: str) -> str:
@@ -226,6 +283,8 @@ async def execute_task(task: str, runtime: str, upstream_context: dict[str, str]
 
     if runtime_name == "claude":
         raw = await run_claude(prompt)
+    elif runtime_name == "cursor":
+        raw = await asyncio.to_thread(run_cursor, prompt)
     elif runtime_name == "codex":
         raw = await asyncio.to_thread(run_codex, prompt)
     elif runtime_name == "opencode":

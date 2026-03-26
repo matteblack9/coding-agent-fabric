@@ -72,6 +72,11 @@ if command -v claude >/dev/null 2>&1; then
 else
     echo "claude: not found"
 fi
+if command -v cursor-agent >/dev/null 2>&1; then
+    echo "cursor-agent: $(cursor-agent --version | head -1)"
+else
+    echo "cursor-agent: not found"
+fi
 if command -v codex >/dev/null 2>&1; then
     echo "codex: $(codex --version | head -1)"
     echo "codex auth: $(codex login status | head -1)"

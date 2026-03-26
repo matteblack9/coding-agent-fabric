@@ -12,7 +12,7 @@ def test_workspace_runtime_override_beats_role_and_default(monkeypatch):
         {
             "runtime": {
                 "default": "claude",
-                "roles": {"executor": "codex"},
+                "roles": {"executor": "cursor"},
             },
             "workspaces": [
                 {
@@ -25,7 +25,7 @@ def test_workspace_runtime_override_beats_role_and_default(monkeypatch):
     )
 
     assert orchestrator.resolve_runtime_name("executor", workspace_id="backend") == "opencode"
-    assert orchestrator.resolve_runtime_name("executor", workspace_id="frontend") == "codex"
+    assert orchestrator.resolve_runtime_name("executor", workspace_id="frontend") == "cursor"
     assert orchestrator.resolve_runtime_name("router") == "claude"
 
 

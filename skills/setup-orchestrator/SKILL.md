@@ -28,6 +28,8 @@ Use this skill when the user wants to install or reconfigure the Project Orchest
 ## Notes
 
 - The TUI generates `orchestrator.yaml`, `start-orchestrator.sh`, `CLAUDE.md`, and `AGENTS.md` when missing.
+- Cursor workspaces can use `.cursor/rules` or legacy `.cursorrules`; setup does not need to scaffold them to enable Cursor CLI execution.
 - If `opencode` is selected for any workspace or default runtime, setup also scaffolds `opencode.json` and `.opencode/skills/`.
 - `claude` remains the default runtime.
+- `cursor` requires a working `cursor-agent` CLI and Cursor authentication.
 - `codex` and `opencode` require working Node.js dependencies and local credentials/provider setup.

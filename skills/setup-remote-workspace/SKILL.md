@@ -21,7 +21,7 @@ Uses the same listener as `/claude-code-tunnels:setup-remote-project`, but regis
 - **Never proceed without asking the user**
 - **Auto-detected values are presented as numbered choices first** — the user only needs to enter a number
 - One listener per workspace (same host → use a different port)
-- The remote workspace should expose guidance the PO can inspect: `AGENTS.md` for Codex/OpenCode, `CLAUDE.md` or `.claude/` for Claude, and `opencode.json`/`.opencode/` when OpenCode-specific config is needed
+- The remote workspace should expose guidance the PO can inspect: `AGENTS.md` for Cursor/Codex/OpenCode, `.cursor/rules` or `.cursorrules` for Cursor, `CLAUDE.md` or `.claude/` for Claude, and `opencode.json`/`.opencode/` when OpenCode-specific config is needed
 
 ---
 
@@ -76,7 +76,7 @@ Auto-detect local project directories and present as choices:
 ```bash
 # List directories under the root in orchestrator.yaml
 root=$(python3 -c "import yaml; print(yaml.safe_load(open('orchestrator.yaml')).get('root','.'))")
-ls "$root"  # exclude: orchestrator, ARCHIVE, .tasks, .claude, .opencode, .git, hidden folders
+ls "$root"  # exclude: orchestrator, ARCHIVE, .tasks, .claude, .cursor, .opencode, .git, hidden folders
 ```
 
 ```
@@ -184,7 +184,7 @@ Number:
 
 ## Step 4: Remote Environment Pre-check (CRITICAL)
 
-**Why it is needed**: the listener uses Python + claude-agent-sdk + aiohttp on the remote machine.
+**Why it is needed**: the listener uses Python + aiohttp on the remote machine, plus runtime-specific executors such as `claude-agent-sdk` for Claude or `cursor-agent` / `codex` / `opencode` CLIs for the other runtimes.
 
 ```
 Remote environment check results:

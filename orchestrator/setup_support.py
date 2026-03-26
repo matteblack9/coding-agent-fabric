@@ -27,7 +27,7 @@ DEFAULT_ROLE_RUNTIMES = {
     "direct_handler": "claude",
     "repair": "claude",
 }
-RUNTIME_CHOICES = ("claude", "codex", "opencode")
+RUNTIME_CHOICES = ("claude", "cursor", "codex", "opencode")
 
 
 @dataclass(slots=True)
@@ -272,6 +272,7 @@ def detect_environment(cwd: Path | None = None) -> EnvironmentReport:
         "node": _detect_binary("node", ["--version"]),
         "npm": _detect_binary("npm", ["--version"]),
         "claude": _detect_binary("claude", ["--version"]),
+        "cursor": _detect_binary("cursor-agent", ["--version"]),
         "codex": _detect_binary("codex", ["--version"]),
         "opencode": _detect_binary("opencode", ["--version"]),
     }
@@ -307,7 +308,7 @@ def detect_environment(cwd: Path | None = None) -> EnvironmentReport:
 def environment_summary(report: EnvironmentReport) -> str:
     """Render a short environment summary for TUI display."""
     lines = ["Environment checks:"]
-    for key in ("python", "node", "npm", "claude", "codex", "opencode"):
+    for key in ("python", "node", "npm", "claude", "cursor", "codex", "opencode"):
         status = report.binaries[key]
         mark = "OK" if status.available else "MISSING"
         details = status.version or status.details

@@ -1,8 +1,11 @@
-"""Runtime-neutral execution layer for Claude, Codex, and OpenCode."""
+"""Runtime-neutral execution layer for Claude, Cursor, Codex, and OpenCode."""
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
+import subprocess
 from dataclasses import dataclass, field
 
 from claude_agent_sdk import (
@@ -56,6 +59,8 @@ async def execute_runtime(invocation: RuntimeInvocation) -> RuntimeExecution:
     )
     if runtime == "claude":
         return await _execute_claude(invocation)
+    if runtime == "cursor":
+        return await asyncio.to_thread(_execute_cursor, invocation)
     return await _execute_bridge(invocation, runtime)
 
 
@@ -117,4 +122,96 @@ async def _execute_bridge(
         items=result.get("items"),
         usage=result.get("usage"),
         raw=result,
+    )
+
+
+def _combine_cli_prompt(system_prompt: str | None, prompt: str) -> str:
+    """Flatten system + user prompts for CLIs without a dedicated system channel."""
+    if not system_prompt:
+        return prompt
+    return (
+        "# System Instructions\n"
+        f"{system_prompt.strip()}\n\n"
+        "# User Request\n"
+        f"{prompt.strip()}"
+    )
+
+
+def extract_cursor_final_text(raw: str) -> tuple[str, list[dict]]:
+    """Extract the final assistant text from Cursor CLI JSON output."""
+    text = (raw or "").strip()
+    if not text:
+        return "", []
+
+    payloads: list[dict] = []
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, dict):
+            payloads = [parsed]
+        elif isinstance(parsed, list):
+            payloads = [item for item in parsed if isinstance(item, dict)]
+    except json.JSONDecodeError:
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(payload, dict):
+                payloads.append(payload)
+
+    if not payloads:
+        return text, []
+
+    for payload in reversed(payloads):
+        if payload.get("is_error"):
+            message = payload.get("error") or payload.get("message") or payload.get("result")
+            raise RuntimeError(str(message or "Cursor CLI returned an error."))
+
+        for key in ("result", "text", "message"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip(), payloads
+
+    return text, payloads
+
+
+def _execute_cursor(invocation: RuntimeInvocation) -> RuntimeExecution:
+    """Execute the task with the local Cursor CLI."""
+    prompt = _combine_cli_prompt(invocation.system_prompt, invocation.prompt)
+    command = [
+        "cursor-agent",
+        "--print",
+        "--output-format",
+        "json",
+        "--force",
+        prompt,
+    ]
+
+    try:
+        proc = subprocess.run(
+            command,
+            cwd=invocation.cwd,
+            capture_output=True,
+            text=True,
+            timeout=None,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError("cursor-agent not found. Install Cursor CLI first.") from exc
+
+    stdout = (proc.stdout or "").strip()
+    stderr = (proc.stderr or "").strip()
+    raw_output = stdout or stderr
+    if proc.returncode != 0:
+        message = stderr or stdout or f"cursor-agent failed ({proc.returncode})"
+        raise RuntimeError(message)
+
+    final_text, payloads = extract_cursor_final_text(raw_output)
+    return RuntimeExecution(
+        runtime="cursor",
+        final_text=final_text,
+        items=payloads,
+        raw={"stdout": stdout, "stderr": stderr, "events": payloads},
     )

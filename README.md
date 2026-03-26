@@ -4,6 +4,7 @@
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![Slack](https://img.shields.io/badge/Channel-Slack-4A154B.svg?logo=slack)](https://api.slack.com/apps)
 [![Telegram](https://img.shields.io/badge/Channel-Telegram-26A5E4.svg?logo=telegram)](https://core.telegram.org/bots)
+[![Cursor CLI](https://img.shields.io/badge/Runtime-Cursor-111111.svg)](https://docs.cursor.com/cli/using)
 [![Codex SDK](https://img.shields.io/badge/Runtime-Codex-111111.svg)](https://developers.openai.com/codex/sdk)
 [![OpenCode SDK](https://img.shields.io/badge/Runtime-OpenCode-0F7B6C.svg)](https://opencode.ai/docs/sdk/)
 
@@ -14,6 +15,7 @@ Micro Agent Manager is an orchestration layer for project trees. A message arriv
 This version keeps the Python control plane, but expands execution beyond a single-runtime model:
 
 - `claude` runs through the existing Python `claude-agent-sdk`
+- `cursor` runs through the local `cursor-agent` CLI
 - `codex` runs through a local Node bridge that uses the official `@openai/codex-sdk`
 - `opencode` runs through the same bridge with `@opencode-ai/sdk`
 - initial setup is handled by a Textual TUI that proposes the `PO` root, `ARCHIVE` path, workspace candidates, WO runtime assignments, and root guidance files
@@ -21,6 +23,7 @@ This version keeps the Python control plane, but expands execution beyond a sing
 Guidance is runtime-aware:
 
 - `claude` prefers `CLAUDE.md` and existing `.claude/` memory/rules
+- `cursor` prefers `.cursor/rules`, also reads `AGENTS.md`, `CLAUDE.md`, and legacy `.cursorrules`
 - `codex` prefers `AGENTS.md` and explicit repo instructions
 - `opencode` prefers `AGENTS.md`, can use `opencode.json` and `.opencode/skills/`, and requires provider login before execution
 
@@ -77,8 +80,8 @@ graph LR
         SINGLE -->|"decompose"| WC
 
         subgraph IB["isolated workspace boundaries"]
-            WA["WO: backend"] --> WA_CTX["AGENTS.md / CLAUDE.md / .claude / .opencode"]
-            WB["WO: frontend"] --> WB_CTX["AGENTS.md / CLAUDE.md / .claude / .opencode"]
+            WA["WO: backend"] --> WA_CTX["AGENTS.md / CLAUDE.md / .claude / .cursor/rules / .opencode"]
+            WB["WO: frontend"] --> WB_CTX["AGENTS.md / CLAUDE.md / .claude / .cursor/rules / .opencode"]
             WC["WO: staging"] --> WC_CTX["runtime config + remote listener"]
         end
     end
@@ -161,7 +164,7 @@ Claude Code has a Channels feature that forwards chat messages into a running CL
 | **Session model** | Bound to a running session | Background daemon with per-workspace execution |
 | **Workspace orchestration** | None | Phase-based planning with upstream context passing |
 | **Session isolation** | Shared session | One isolated WO per workspace |
-| **Runtime** | Single Claude session bridge | `claude`, `codex`, `opencode` through one control plane |
+| **Runtime** | Single Claude session bridge | `claude`, `cursor`, `codex`, `opencode` through one control plane |
 | **Remote workspaces** | Not supported | HTTP listener for remote hosts and pods |
 | **Task logging** | None | `.tasks/` logging with runtime metadata |
 | **Confirm gate** | None | Built-in confirm/cancel flow |
@@ -209,7 +212,7 @@ flowchart TB
     class W1,W2,W3 worker
 ```
 
-**No handoff required.** The orchestrator already knows workspace structure through `orchestrator.yaml`, shared instructions in `AGENTS.md`, Claude-specific context in `CLAUDE.md` or `.claude/`, OpenCode-specific config in `opencode.json` or `.opencode/`, and workspace-specific runtime settings. A teammate does not need your local terminal state or your memory of "how this repo works."
+**No handoff required.** The orchestrator already knows workspace structure through `orchestrator.yaml`, shared instructions in `AGENTS.md`, Claude-specific context in `CLAUDE.md` or `.claude/`, Cursor-specific rules in `.cursor/rules` or `.cursorrules`, OpenCode-specific config in `opencode.json` or `.opencode/`, and workspace-specific runtime settings. A teammate does not need your local terminal state or your memory of "how this repo works."
 
 | Scenario | Without Tunnels | With Tunnels |
 |----------|----------------|--------------|
@@ -432,7 +435,7 @@ The setup TUI:
 1. checks whether the current folder already looks like a `PO` root
 2. suggests the `PO` root, `ARCHIVE` path, and workspace candidates
 3. lets you assign one `WO` per selected workspace
-4. writes `orchestrator.yaml`, `start-orchestrator.sh`, and root runtime guidance files (`AGENTS.md`, `CLAUDE.md`, plus `opencode.json` / `.opencode/` when OpenCode is selected) when needed
+4. writes `orchestrator.yaml`, `start-orchestrator.sh`, and root runtime guidance files (`AGENTS.md`, `CLAUDE.md`, plus `opencode.json` / `.opencode/` when OpenCode is selected) when needed; Cursor reads `.cursor/rules` if your repo already uses it
 5. shows the exact commands to run next
 
 ---
@@ -556,6 +559,7 @@ po-root/
 ├── start-orchestrator.sh
 ├── AGENTS.md
 ├── CLAUDE.md
+├── .cursor/
 ├── opencode.json
 ├── .opencode/
 ├── package.json
@@ -588,6 +592,7 @@ flowchart TD
         subgraph LOCAL["Local execution"]
             RL["Runtime layer"]
             CSDK["Claude SDK"]
+            CUR["Cursor CLI"]
             BR["Node bridge"]
             CX["Codex SDK"]
             OC["OpenCode SDK"]
@@ -609,12 +614,14 @@ flowchart TD
     E --> RL
     E --> REM
     RL --> CSDK
+    RL --> CUR
     RL --> BR
     BR --> CX
     BR --> OC
     REM --> RR
 
     CSDK --> L
+    CUR --> L
     CX --> L
     OC --> L
     RR --> L
@@ -632,7 +639,7 @@ flowchart TD
     style REMOTE fill:#FFF7ED,stroke:#EA580C,stroke-width:1.5px,color:#9A3412
     class U,CA channel
     class G,R,P,D,E,L control
-    class RL,CSDK,CX,OC local
+    class RL,CSDK,CUR,CX,OC local
     class BR bridge
     class REM,RR remote
 ```
@@ -663,6 +670,7 @@ Runtime guidance is runtime-aware. The same repository can expose different inst
 | Runtime | Primary guidance | Characteristics | Best use |
 |---------|------------------|-----------------|----------|
 | `claude` | `CLAUDE.md` and `.claude/` | Hierarchical project memory, rules, and existing Claude workflows are loaded naturally through the Python SDK path | Reusing existing Claude Code project setups without rewriting guidance |
+| `cursor` | `.cursor/rules`, `AGENTS.md`, `CLAUDE.md`, legacy `.cursorrules` | Cursor CLI loads project rules from `.cursor/rules`, also reads `AGENTS.md` and `CLAUDE.md`, and still supports legacy `.cursorrules` | Teams standardized on Cursor project rules that still want orchestrated execution |
 | `codex` | `AGENTS.md` | Works best with explicit repo instructions and structured task framing; there is no parallel `.codex/` project convention in this setup | Shared coding rules, step-by-step repo policies, and structured execution |
 | `opencode` | `AGENTS.md`, optionally `opencode.json` and `.opencode/skills/` | Similar repo-instruction style to Codex, but with extra project-local config and skills support; also requires provider login and runs through the OpenCode SDK session flow | Teams that want AGENTS-based guidance plus OpenCode-specific config or project skills |
 
@@ -670,9 +678,11 @@ Supporting files:
 
 | File | Used by | Purpose |
 |------|---------|---------|
-| `AGENTS.md` | Primarily `codex` and `opencode`; also useful as shared human-readable guidance | Canonical runtime-neutral operating rules |
+| `AGENTS.md` | Primarily `cursor`, `codex`, and `opencode`; also useful as shared human-readable guidance | Canonical runtime-neutral operating rules |
 | `CLAUDE.md` | `claude` | Claude-specific project and workspace guidance |
 | `.claude/` | `claude` and legacy Claude setups | Existing Claude memory, rules, and skills |
+| `.cursor/rules/` | `cursor` | Cursor project rules directory using `.mdc` files |
+| `.cursorrules` | `cursor` | Legacy single-file Cursor rule format |
 | `opencode.json` | `opencode` | Project-local OpenCode config file |
 | `.opencode/skills/` | `opencode` | Project-local OpenCode skills |
 
@@ -680,6 +690,7 @@ Recommended pattern:
 
 - Put shared workflow rules, repo conventions, and task expectations in `AGENTS.md`
 - Keep `CLAUDE.md` for Claude-specific prompt framing or compatibility with existing Claude projects
+- Use `.cursor/rules/` for Cursor-specific project rules, or keep `.cursorrules` only when you still rely on the legacy single-file format
 - Use `opencode.json` and `.opencode/skills/` only when you need OpenCode-specific config or project-local skills
 - Keep `.claude/` only when you actively rely on Claude memory, rules, or skills
 
@@ -786,6 +797,7 @@ remote_workspaces:
 
 - Python 3.10+
 - `claude-agent-sdk` and `aiohttp` if the remote runtime is `claude`
+- `cursor-agent` CLI if the remote runtime is `cursor`
 - `codex` CLI if the remote runtime is `codex`
 - `opencode` CLI plus provider credentials if the remote runtime is `opencode`
 
@@ -921,7 +933,7 @@ allowed_users : username1, username2
 1. **User-controlled input isolation**: channel content is wrapped and handled separately from system instructions
 2. **Workspace validation**: only configured or discovered real workspaces are eligible targets
 3. **Path traversal prevention**: invalid names and blocked paths are rejected
-4. **Sensitive directory blocking**: `ARCHIVE/`, `.tasks/`, `.git/`, `.claude/`, `.opencode/`, and `orchestrator/` are excluded from targeting
+4. **Sensitive directory blocking**: `ARCHIVE/`, `.tasks/`, `.git/`, `.claude/`, `.cursor/`, `.opencode/`, and `orchestrator/` are excluded from targeting
 5. **Workspace sandboxing**: each WO executes with its own `cwd`
 6. **Channel confirmation**: channel execution is gated by explicit confirm/cancel state
 
@@ -960,12 +972,13 @@ Adjust the system prompt in `orchestrator/direct_handler.py` to integrate your o
 
 Control WO behavior through guidance files:
 
-- `AGENTS.md` should hold shared repo rules for `codex` and `opencode`, and is the best default for runtime-neutral instructions
+- `AGENTS.md` should hold shared repo rules for `cursor`, `codex`, and `opencode`, and is the best default for runtime-neutral instructions
 - `CLAUDE.md` should hold Claude-specific framing when the `claude` runtime needs extra project context
+- `.cursor/rules/` should hold Cursor-specific `.mdc` rule files, and `.cursorrules` should be kept only for legacy compatibility
 - `opencode.json` and `.opencode/skills/` should hold OpenCode-only config and project-local skills when you need them
 - `.claude/` should be kept only for Claude memory, rules, and skills you still actively depend on
 
-The setup flow creates root-level `AGENTS.md` and `CLAUDE.md` when missing, and also scaffolds `opencode.json` plus `.opencode/` when OpenCode is selected. In practice, treat `AGENTS.md` as the shared contract across runtimes, then layer Claude-only behavior in `CLAUDE.md` or `.claude/`, and OpenCode-only behavior in `opencode.json` or `.opencode/`.
+The setup flow creates root-level `AGENTS.md` and `CLAUDE.md` when missing, and also scaffolds `opencode.json` plus `.opencode/` when OpenCode is selected. Cursor uses `.cursor/rules` when your repo already defines project rules. In practice, treat `AGENTS.md` as the shared contract across runtimes, then layer Claude-only behavior in `CLAUDE.md` or `.claude/`, Cursor-only behavior in `.cursor/rules` or legacy `.cursorrules`, and OpenCode-only behavior in `opencode.json` or `.opencode/`.
 
 ---
 
@@ -978,6 +991,7 @@ The setup flow creates root-level `AGENTS.md` and `CLAUDE.md` when missing, and 
 | `pyyaml` | Always | Config loading |
 | `requests` | If remote deployment helpers are used | SSH and kubectl deployment flows |
 | `textual` | Always | Setup TUI |
+| `cursor-agent` | If Cursor | Cursor CLI runtime |
 | `@openai/codex-sdk` | Always after `npm install` | Codex runtime bridge |
 | `@opencode-ai/sdk` | Always after `npm install` | OpenCode runtime bridge |
 | `slack-bolt` + `slack-sdk` | If Slack | Slack adapter |

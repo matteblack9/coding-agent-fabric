@@ -15,6 +15,7 @@ def _fake_environment() -> EnvironmentReport:
         "node": BinaryStatus(name="node", available=True, path="/usr/bin/node", version="v22.0.0"),
         "npm": BinaryStatus(name="npm", available=True, path="/usr/bin/npm", version="10.0.0"),
         "claude": BinaryStatus(name="claude", available=True, path="/usr/bin/claude", version="2.0.0"),
+        "cursor": BinaryStatus(name="cursor-agent", available=True, path="/usr/bin/cursor-agent", version="1.0.0"),
         "codex": BinaryStatus(name="codex", available=True, path="/usr/bin/codex", version="0.116.0"),
         "opencode": BinaryStatus(name="opencode", available=True, path="/usr/bin/opencode", version="1.3.2"),
     }
