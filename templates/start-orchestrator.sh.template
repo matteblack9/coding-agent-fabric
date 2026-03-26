@@ -4,14 +4,23 @@ cd "$(dirname "$0")"
 
 unset CLAUDECODE CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_ENABLE_TELEMETRY OTEL_EXPORTER_OTLP_ENDPOINT
 
-LOG_FILE="/tmp/orchestrator-$(date +%Y%m%d).log"
+PYTHON_BIN="{{PYTHON_BIN}}"
+LOG_FILE="${ORCHESTRATOR_LOG_FILE:-{{LOG_FILE}}}"
+
+if [[ ! -x "$PYTHON_BIN" && -x ".venv/bin/python" ]]; then
+    PYTHON_BIN="$(pwd)/.venv/bin/python"
+fi
+
+if [[ ! -x "$PYTHON_BIN" ]]; then
+    PYTHON_BIN="$(command -v python3 || command -v python)"
+fi
 
 if [[ "${1:-}" == "--fg" ]]; then
     echo "Starting orchestrator (foreground)..."
-    python3 -m orchestrator.main 2>&1 | tee "$LOG_FILE"
+    "$PYTHON_BIN" -m orchestrator.main 2>&1 | tee "$LOG_FILE"
 else
     echo "Starting orchestrator (background)..."
-    nohup python3 -m orchestrator.main > "$LOG_FILE" 2>&1 &
+    nohup "$PYTHON_BIN" -m orchestrator.main > "$LOG_FILE" 2>&1 &
     PID=$!
     sleep 2
     if kill -0 "$PID" 2>/dev/null; then

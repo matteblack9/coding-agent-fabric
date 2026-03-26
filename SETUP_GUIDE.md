@@ -1,105 +1,103 @@
-# Claude-Code-Tunnels Channel Setup Guide
+# claude-code-tunnels Setup Guide
 
-How to connect Slack and Telegram channels to the orchestrator.
-
----
-
-## Common Prerequisites
-
-### 1. Install Dependencies
+This guide covers the current setup flow:
 
 ```bash
-pip install claude-agent-sdk aiohttp pyyaml
+./install.sh
+.venv/bin/python -m orchestrator.setup_tui
+./start-orchestrator.sh --fg
 ```
 
-### 2. Configure orchestrator.yaml
+## What the Setup TUI Does
 
-Place in the project root (parent directory of orchestrator/).
+The setup TUI is the primary installer now. It:
+
+1. Checks whether the current folder already looks like a `PO` root
+2. Suggests a `PO root`, `ARCHIVE` path, and workspace candidates
+3. Creates a `WO` for each selected workspace
+4. Lets you choose runtime defaults and channel enablement
+5. Writes `orchestrator.yaml`, `start-orchestrator.sh`, `CLAUDE.md`, and `AGENTS.md` when needed
+6. Shows the exact commands to run in foreground or background
+
+## Folder Heuristics
+
+The TUI classifies the current folder into one of four modes:
+
+- `existing_po`: the folder already contains at least two PO markers such as `orchestrator.yaml`, `orchestrator/`, `start-orchestrator.sh`, `ARCHIVE/`, or `.tasks/`
+- `new_po_candidate`: the folder has multiple visible child directories and weak code-root markers
+- `workspace_candidate`: the folder looks like a single codebase because it contains markers such as `.git`, `package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`, or `requirements.txt`
+- `unknown`: neither side is strongly implied, so the TUI proposes `cwd` and `parent` as candidates
+
+If the current folder looks like a PO root, the TUI automatically proposes:
+
+- `PO root = cwd`
+- `ARCHIVE = <cwd>/ARCHIVE`
+- workspace candidates from immediate child directories excluding `orchestrator`, `ARCHIVE`, `.tasks`, `.claude`, `.git`, and hidden directories
+
+## Runtime Model
+
+The control plane stays in Python. Workspace execution can use:
+
+- `claude`: Python `claude-agent-sdk`
+- `codex`: Node bridge with `@openai/codex-sdk`
+- `opencode`: Node bridge with `@opencode-ai/sdk`
+
+Default runtime behavior:
+
+- `router = claude`
+- `planner = claude`
+- `executor = claude` unless changed in the TUI
+- `direct_handler = claude`
+- `repair = claude`
+
+Each workspace gets a `WO` entry:
 
 ```yaml
-root: /path/to/your/projects
-archive: /path/to/your/projects/ARCHIVE
-
-channels:
-  slack:
-    enabled: false
-  telegram:
-    enabled: false
-
-remote_workspaces: []
+workspaces:
+  - id: backend
+    path: backend
+    wo:
+      runtime: codex
+      mode: local
 ```
 
-### 3. Credential Directory Structure
+Remote example:
 
-```
-ARCHIVE/
-├── slack/
-│   └── credentials
-└── telegram/
-    └── credentials
-```
-
-All credential files use `key : value` format (one space on each side of the colon):
-
-```
-key1 : value1
-key2 : value2
+```yaml
+workspaces:
+  - id: staging
+    path: services/staging
+    wo:
+      runtime: opencode
+      mode: remote
+      remote:
+        host: 10.0.0.5
+        port: 9100
+        token: ""
 ```
 
----
+## Slack Setup
 
-## Slack Channel Setup
+1. Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps)
+2. Enable Socket Mode and generate an app-level token with `connections:write`
+3. Add bot scopes:
+   - `chat:write`
+   - `channels:history`
+   - `groups:history`
+   - `im:history`
+   - `mpim:history`
+   - `app_mentions:read`
+4. Enable event subscriptions for:
+   - `message.channels`
+   - `message.groups`
+   - `message.im`
+   - `app_mention`
+5. Install the app to the target workspace
+6. Save credentials under `ARCHIVE/slack/credentials`
 
-### Step 1: Create a Slack App
+Credential file format:
 
-1. Go to https://api.slack.com/apps
-2. **Create New App** → **From scratch**
-3. Choose an app name and workspace, then create
-
-### Step 2: Enable Socket Mode
-
-Socket Mode uses WebSocket, so no public URL is needed.
-
-1. Left menu **Settings → Socket Mode** → toggle **Enable Socket Mode** ON
-2. Generate an App-Level Token:
-   - Token Name: `orchestrator` (any name)
-   - Scope: add `connections:write`
-   - Click **Generate**
-   - Copy the generated `xapp-1-...` token → use as `app_level_token`
-
-### Step 3: Bot Token Scopes (OAuth & Permissions)
-
-Left menu **Features → OAuth & Permissions** → **Scopes → Bot Token Scopes**, add:
-
-| Scope | Purpose |
-|-------|---------|
-| `chat:write` | Send messages |
-| `channels:history` | Read channel messages |
-| `groups:history` | Read private channel messages |
-| `im:history` | Read DM messages |
-| `mpim:history` | Read group DM messages |
-| `app_mentions:read` | Receive @mention events |
-
-### Step 4: Event Subscriptions
-
-1. Left menu **Features → Event Subscriptions** → toggle **Enable Events** ON
-2. Under **Subscribe to bot events**, add:
-   - `message.channels` — public channel messages
-   - `message.groups` — private channel messages
-   - `message.im` — DM messages
-   - `app_mention` — @mentions
-
-### Step 5: Install to Workspace
-
-1. Left menu **Settings → Install App** → **Install to Workspace**
-2. Approve permissions
-3. Copy the **Bot User OAuth Token** (`xoxb-...`)
-
-### Step 6: Write Credential File
-
-`ARCHIVE/slack/credentials`:
-
-```
+```text
 app_id : A0XXXXXXXXX
 client_id : 1234567890.9876543210
 client_secret : your-client-secret
@@ -108,43 +106,7 @@ app_level_token : xapp-1-XXXXXXXXXXX
 bot_token : xoxb-XXXXXXXXXXX
 ```
 
-Where to find each value:
-- `app_id`: Settings → Basic Information → App ID
-- `client_id`, `client_secret`: Settings → Basic Information → App Credentials
-- `signing_secret`: Settings → Basic Information → App Credentials → Signing Secret
-- `app_level_token`: Settings → Basic Information → App-Level Tokens
-- `bot_token`: Features → OAuth & Permissions → Bot User OAuth Token
-
-### Step 7: User Allowlist
-
-Add allowed Slack User IDs to the `ALLOWED_USERS` set in `orchestrator/channel/slack.py`:
-
-```python
-ALLOWED_USERS: set[str] = {
-    "U04K5QVP03Z",  # example user
-    # ... add more
-}
-```
-
-**How to find User ID:**
-1. Click a user's profile in Slack → **⋮ More** → **Copy member ID**
-2. Or use the Slack API: `https://api.slack.com/methods/users.list/test`
-
-**Set to empty `set()` to allow all users** (for testing environments).
-
-### Step 8: Invite Bot to Channel
-
-The bot must be a member of the channel to receive messages:
-
-```
-/invite @botname
-```
-
-Or add via Channel Settings → Integrations → Apps.
-
-### Step 9: Enable
-
-In `orchestrator.yaml`:
+Then enable Slack in the TUI or in `orchestrator.yaml`:
 
 ```yaml
 channels:
@@ -152,38 +114,19 @@ channels:
     enabled: true
 ```
 
-### Verify
+## Telegram Setup
 
-```bash
-python -m orchestrator.main
-```
+1. Create a bot with [@BotFather](https://t.me/botfather)
+2. Save credentials under `ARCHIVE/telegram/credentials`
 
-If you see `Slack channel starting (Socket Mode)...` in the logs, it is working.
-Send the bot a DM or @mention it in a channel to test.
+Credential file format:
 
----
-
-## Telegram Channel Setup
-
-### Step 1: Create a Bot with BotFather
-
-1. Open [@BotFather](https://t.me/botfather) on Telegram
-2. Send `/newbot` and follow the prompts
-3. Copy the **Bot Token** (`123456:ABC-DEF...`)
-
-### Step 2: Write Credential File
-
-`ARCHIVE/telegram/credentials`:
-
-```
+```text
 bot_token : 123456789:ABCdefGHIjklMNOpqrsTUVwxyz
 allowed_users : username1, username2
 ```
 
-- `bot_token`: Token issued by BotFather
-- `allowed_users`: Comma-separated list of allowed Telegram usernames. Leave empty to allow all users.
-
-### Step 3: Enable
+Then enable Telegram in the TUI or in `orchestrator.yaml`:
 
 ```yaml
 channels:
@@ -191,150 +134,54 @@ channels:
     enabled: true
 ```
 
-### Verify
+## Running
 
-When you see `Telegram channel starting (bot: @botname)...` in the logs, it is working.
-Send a message to the bot on Telegram to test.
-
----
-
-## Running the Orchestrator
-
-### Direct
+Foreground:
 
 ```bash
-python -m orchestrator.main
+./start-orchestrator.sh --fg
 ```
 
-### Background
+Background:
 
 ```bash
-nohup python -m orchestrator.main > /tmp/orchestrator.log 2>&1 &
+./start-orchestrator.sh
 ```
 
-Or use `start-orchestrator.sh`:
+Reconfigure:
 
 ```bash
-./start-orchestrator.sh        # background
-./start-orchestrator.sh --fg   # foreground
+.venv/bin/python -m orchestrator.setup_tui
 ```
 
-### Stop
+## Remote Listener
+
+The remote listener accepts:
+
+- `LISTENER_CWD`
+- `LISTENER_PORT`
+- `LISTENER_TOKEN`
+- `LISTENER_RUNTIME`
+
+Health endpoint:
 
 ```bash
-kill $(pgrep -f "orchestrator.main")
+curl http://host:9100/health
 ```
 
----
-
-## User Interaction Flow
-
-### Session State Machine
-
-```
-IDLE → (message received) → PENDING_CONFIRM
-  → "confirm" → EXECUTING (plan)
-    → read-only / direct answer → AWAITING_FOLLOWUP
-    → modification plan → PENDING_EXECUTION_CONFIRM
-      → "confirm" → EXECUTING (run) → AWAITING_FOLLOWUP
-      → "cancel" → IDLE
-  → "cancel" → IDLE
-AWAITING_FOLLOWUP
-  → "yes"/"done" → session end (IDLE)
-  → other message → treated as follow-up request (context retained)
-```
-
-### Confirm / Cancel Keywords
-
-| Action | Keywords |
-|--------|---------|
-| Confirm | `yes`, `y`, `ok`, `confirm`, `proceed` |
-| Cancel | `cancel`, `no`, `n` |
-| End session | `yes`, `y`, `ok`, `done`, `end`, `finish` |
-
-### Two-step Confirm Flow (Code Modification Tasks)
-
-1. **First confirm**: "Is this what you meant?" → user "confirm"
-2. **Plan**: Router → PO generates execution plan
-3. **Second confirm**: Show execution plan → user "confirm" (only for workspace modification tasks)
-4. **Execute**: Executor runs workspaces phase-by-phase in parallel/sequential order
-5. **Complete**: Format results and send back to channel
-
-Read-only requests like queries skip the second confirmation and return results directly.
-
----
-
-## Adding New Projects / Workspaces
-
-1. Create a folder in the project root
-2. Write a `CLAUDE.md` inside (role, build commands, test method, etc.)
-3. Done — PO auto-discovers via `ls` + reading CLAUDE.md
-
-### Workspace Structure Example
-
-```
-my-project/
-├── CLAUDE.md              # project overview
-├── frontend/
-│   ├── CLAUDE.md          # frontend build/test guide
-│   └── src/
-├── backend/
-│   ├── CLAUDE.md          # backend API guide
-│   └── src/
-└── database/
-    ├── CLAUDE.md          # migration guide
-    └── migrations/
-```
-
----
-
-## Add a Custom Channel
-
-Inherit from `BaseChannel` and implement just three methods: `_send`, `start`, `stop`.
-
-```python
-from orchestrator.channel.base import BaseChannel
-
-class MyChannel(BaseChannel):
-    channel_name = "mychannel"
-
-    async def _send(self, callback_info, text):
-        # message send logic
-        ...
-
-    async def start(self):
-        # start receiving messages
-        ...
-
-    async def stop(self):
-        # cleanup
-        ...
-```
-
-Register in `main.py`:
-
-```python
-if channels_config.get("mychannel", {}).get("enabled"):
-    my_ch = MyChannel(confirm_gate)
-    register_channel("mychannel", my_ch)
-    tasks.append(asyncio.create_task(my_ch.start()))
-```
-
----
-
-## Testing
+Execute endpoint:
 
 ```bash
-python -m pytest orchestrator/tests/ -v
+curl -X POST http://host:9100/execute \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"task":"deploy staging","runtime":"codex","upstream_context":{}}'
 ```
 
----
+## Verification Checklist
 
-## Troubleshooting
-
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| Slack not connecting | Socket Mode disabled | Toggle Socket Mode ON in Slack App settings |
-| Slack messages ignored | User not in `ALLOWED_USERS` | Add User ID or set to empty set |
-| Telegram no response | Bad Bot Token | Re-issue token from BotFather |
-| JSON parse failure | Agent response format error | Haiku repair pass attempts auto-recovery |
+- `.venv/bin/python -m pytest orchestrator/tests -q`
+- `node --test`
+- `codex login status`
+- `opencode providers list`
+- `./start-orchestrator.sh --fg`

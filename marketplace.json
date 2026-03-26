@@ -14,7 +14,7 @@
         "source": "github",
         "repo": "matteblack9/claude-code-tunnels"
       },
-      "description": "Route tasks from Slack or Telegram to the right project, execute in dependency-aware phases, and get structured results back.",
+        "description": "Route tasks from Slack or Telegram to the right project, execute them in dependency-aware phases, and delegate each workspace to Claude, Codex, or OpenCode.",
       "version": "1.1.0",
       "author": {
         "name": "Claude Tunnels"

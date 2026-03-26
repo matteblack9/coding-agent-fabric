@@ -17,6 +17,7 @@ for _key in ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT"):
     os.environ.pop(_key, None)
 
 from orchestrator import CONFIG
+from orchestrator.runtime.bridge import close_bridge_daemon
 from orchestrator.server import ConfirmGate, register_channel
 
 logging.basicConfig(
@@ -72,6 +73,7 @@ async def main() -> None:
             pass
     for t in tasks:
         t.cancel()
+    await close_bridge_daemon()
 
     logger.info("Orchestrator stopped.")
 

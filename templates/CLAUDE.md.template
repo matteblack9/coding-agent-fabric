@@ -2,23 +2,23 @@
 
 ## Role: Project Orchestrator
 
-This directory is managed by the Project Orchestrator. Code is never modified directly here — the `orchestrator/` package delegates work to workspaces via `query(cwd=workspace/)`.
+This directory is managed by the Project Orchestrator. Code is never modified directly here. The `orchestrator/` package delegates work to Workspace Orchestrators (WOs) that run inside each workspace.
 
 ## Hierarchy
 
 ```
 orchestrator/
-├── PO: query(cwd=project/) → execution plan (phases + dependencies)
-├── Executor: query(cwd=workspace/) → parallel/sequential workspace execution
-├── Each project/ (CLAUDE.md + .claude/ auto-loaded)
+├── PO: routing + execution plan (phases + dependencies)
+├── Executor: parallel/sequential WO execution
+├── Each workspace/ (runtime guidance auto-loaded per runtime)
 └── ARCHIVE/ → credentials & configs (never modify)
 ```
 
 ## What the Orchestrator Does
 
-- **Route** user requests to the correct project/workspace
+- **Route** user requests to the correct workspace
 - **Analyze** workspace dependencies dynamically to create execution phases
-- **Execute** phases via `query(cwd=workspace/)` in parallel/sequential order
+- **Execute** WOs in parallel/sequential order using the configured runtime
 - **Log** results to `.tasks/`
 - **Notify** results back to the requesting channel
 - **Never** modify code directly — always delegates to workspaces

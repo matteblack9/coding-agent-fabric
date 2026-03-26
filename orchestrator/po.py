@@ -3,15 +3,16 @@
 import logging
 from pathlib import Path
 
-from claude_agent_sdk import (
-    query,
-    ClaudeAgentOptions,
-    AssistantMessage,
-    ResultMessage,
+from orchestrator import (
+    BASE,
+    configured_workspaces,
+    extract_json,
+    is_valid_workspace_identifier,
+    repair_json,
+    uses_workspace_registry,
 )
-
-from orchestrator import BASE, extract_json, repair_json
-from orchestrator.sanitize import wrap_user_input, validate_workspace_name
+from orchestrator.runtime import RuntimeInvocation, execute_runtime
+from orchestrator.sanitize import wrap_user_input
 
 logger = logging.getLogger(__name__)
 
@@ -85,45 +86,49 @@ async def get_execution_plan(
     """Call PO agent to analyze user request and produce an execution plan."""
     base = base_dir or BASE
     cwd = base / project if project else base
-
-    stderr_lines: list[str] = []
-
-    options = ClaudeAgentOptions(
-        cwd=str(cwd),
-        system_prompt=PO_SYSTEM_PROMPT,
-        allowed_tools=[
-            "Read", "Glob", "Grep", "Bash",
-            "mcp__github_enterprise__*",
-            "mcp__jira__*",
-            "mcp__confluence__*",
-            "mcp__playwright__*",
-            "WebFetch", "WebSearch",
-        ],
-        max_turns=15,
-        setting_sources=["project"],
-        permission_mode="bypassPermissions",
-        model="opus",
-        effort="high",
-        stderr=lambda line: stderr_lines.append(line),
-    )
-
-    collected_texts: list[str] = []
-    final_result: str | None = None
+    system_prompt = PO_SYSTEM_PROMPT
+    if uses_workspace_registry():
+        registry_lines = [
+            f"- {entry.get('id')}: {entry.get('path')}"
+            for entry in configured_workspaces()
+            if entry.get("id") and entry.get("path")
+        ]
+        registry_block = "\n".join(registry_lines)
+        system_prompt += (
+            "\n\n## Configured workspace registry\n"
+            "The current directory is the PO root. Use workspace ids from the registry below,\n"
+            "not raw filesystem paths, when building phases and task_per_workspace.\n"
+            f"{registry_block}\n"
+        )
 
     sandboxed_prompt = wrap_user_input(user_message)
 
     try:
-        async for message in query(prompt=sandboxed_prompt, options=options):
-            if isinstance(message, AssistantMessage):
-                for block in message.content:
-                    if hasattr(block, "text"):
-                        collected_texts.append(block.text)
-            elif isinstance(message, ResultMessage):
-                if message.result:
-                    final_result = message.result
+        result = await execute_runtime(
+            RuntimeInvocation(
+                role="planner",
+                cwd=str(cwd),
+                prompt=sandboxed_prompt,
+                system_prompt=system_prompt,
+                allowed_tools=[
+                    "Read", "Glob", "Grep", "Bash",
+                    "mcp__github_enterprise__*",
+                    "mcp__jira__*",
+                    "mcp__confluence__*",
+                    "mcp__playwright__*",
+                    "WebFetch", "WebSearch",
+                ],
+                max_turns=15,
+                setting_sources=["project"],
+                permission_mode="bypassPermissions",
+                model="opus",
+                effort="high",
+                sandbox_mode="read-only",
+                approval_policy="never",
+                network_access_enabled=True,
+            )
+        )
     except Exception as exc:
-        if stderr_lines:
-            logger.error("PO stderr:\n%s", "\n".join(stderr_lines))
         logger.error("PO query() failed: %s", exc)
         return {
             "clarification_needed": (
@@ -133,16 +138,13 @@ async def get_execution_plan(
             )
         }
 
-    if stderr_lines:
-        logger.error("PO stderr:\n%s", "\n".join(stderr_lines))
-
-    raw = final_result or (collected_texts[-1] if collected_texts else "")
+    raw = result.final_text
     logger.info("PO raw response (first 500 chars): %s", raw[:500])
 
     def _validate_plan(plan: dict) -> dict:
         """Validate workspace names in the execution plan against the filesystem."""
         project_name = plan.get("project", "")
-        project_dir = cwd if project else base / project_name
+        project_dir = cwd if project in (None, ".") else base / project_name
 
         if "phases" in plan and "task_per_workspace" in plan:
             validated_phases = []
@@ -150,7 +152,7 @@ async def get_execution_plan(
             for phase in plan["phases"]:
                 valid_ws = [
                     ws for ws in phase
-                    if validate_workspace_name(ws, project_dir)
+                    if is_valid_workspace_identifier(ws, project_dir)
                 ]
                 invalid_ws = [ws for ws in phase if ws not in valid_ws]
                 if invalid_ws:
@@ -169,27 +171,12 @@ async def get_execution_plan(
     except ValueError:
         logger.warning("PO JSON extraction failed, attempting repair pass")
 
-    # Layer 2: Try all collected texts (sometimes the JSON is in an earlier block)
-    for text in reversed(collected_texts):
-        try:
-            return _validate_plan(extract_json(text))
-        except ValueError:
-            continue
-
     # Layer 3: Repair pass with haiku
     logger.info("PO repair pass: sending raw response to haiku for JSON extraction")
     repaired = await repair_json(raw, expected_keys=PO_EXPECTED_KEYS)
     if repaired is not None:
         logger.info("PO repair pass succeeded: %s", list(repaired.keys()))
         return _validate_plan(repaired)
-
-    # Layer 4: If all texts combined might contain JSON fragments, try concatenated
-    all_text = "\n".join(collected_texts)
-    if all_text != raw:
-        try:
-            return _validate_plan(extract_json(all_text))
-        except ValueError:
-            pass
 
     # Layer 5: Graceful fallback — return clarification instead of crashing
     logger.error(

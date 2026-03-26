@@ -4,14 +4,15 @@ import asyncio
 import logging
 from pathlib import Path
 
-from claude_agent_sdk import (
-    query,
-    ClaudeAgentOptions,
-    AssistantMessage,
-    ResultMessage,
+from orchestrator import (
+    BASE,
+    extract_json,
+    repair_json,
+    resolve_remote_workspace_config,
+    resolve_runtime_name,
+    resolve_workspace_path,
 )
-
-from orchestrator import BASE, CONFIG, extract_json, repair_json
+from orchestrator.runtime import RuntimeInvocation, execute_runtime
 from orchestrator.sanitize import wrap_user_input, sanitize_downstream_context
 
 logger = logging.getLogger(__name__)
@@ -68,13 +69,12 @@ async def run_workspace(
     If the workspace matches a remote_workspaces entry in orchestrator.yaml,
     delegates to the remote listener via HTTP instead of local query().
     """
-    # Check remote workspaces first
-    for rw in CONFIG.get("remote_workspaces", []):
-        if rw.get("name") in (f"{project}/{workspace}", workspace):
-            return await _run_remote_workspace(rw, task, upstream_context)
+    remote_config = resolve_remote_workspace_config(workspace)
+    if remote_config:
+        return await _run_remote_workspace(remote_config, task, upstream_context)
 
-    base = base_dir or BASE
-    cwd = base / project / workspace
+    cwd = resolve_workspace_path(project, workspace, base_dir or BASE)
+    runtime = resolve_runtime_name("executor", workspace_id=workspace)
 
     parts: list[str] = []
     if upstream_context:
@@ -92,48 +92,45 @@ async def run_workspace(
     parts.append(RESPONSE_FORMAT_INSTRUCTION)
     prompt = "\n".join(parts)
 
-    options = ClaudeAgentOptions(
-        cwd=str(cwd),
-        max_turns=100,
-        allowed_tools=[
-            "Read", "Write", "Edit",
-            "Bash", "Glob", "Grep",
-            "Agent", "WebFetch", "WebSearch",
-            "TodoWrite", "NotebookEdit", "Skill",
-            "mcp__github_enterprise__*",
-            "mcp__jira__*",
-            "mcp__confluence__*",
-            "mcp__playwright__*",
-        ],
-        setting_sources=["project"],
-        permission_mode="bypassPermissions",
-    )
-
-    collected_texts: list[str] = []
-    final_result: str | None = None
-    stderr_lines: list[str] = []
-
     try:
-        async for message in query(prompt=prompt, options=options):
-            if isinstance(message, AssistantMessage):
-                for block in message.content:
-                    if hasattr(block, "text"):
-                        collected_texts.append(block.text)
-            elif isinstance(message, ResultMessage):
-                if message.result:
-                    final_result = message.result
+        result = await execute_runtime(
+            RuntimeInvocation(
+                role="executor",
+                workspace_id=workspace,
+                runtime=runtime,
+                cwd=str(cwd),
+                prompt=prompt,
+                max_turns=5,
+                allowed_tools=[
+                    "Read", "Write", "Edit",
+                    "Bash", "Glob", "Grep",
+                    "Agent", "WebFetch", "WebSearch",
+                    "TodoWrite", "NotebookEdit", "Skill",
+                    "mcp__github_enterprise__*",
+                    "mcp__jira__*",
+                    "mcp__confluence__*",
+                    "mcp__playwright__*",
+                ],
+                setting_sources=["project"],
+                permission_mode="bypassPermissions",
+                sandbox_mode="workspace-write",
+                approval_policy="never",
+                network_access_enabled=True,
+            )
+        )
     except Exception as exc:
         logger.error("[%s/%s] Workspace query() failed: %s", project, workspace, exc)
-        all_text = "\n".join(collected_texts)
         return {
             "changed_files": [],
-            "summary": all_text[:1000] if all_text else f"Workspace agent crashed: {exc}",
+            "summary": f"Workspace agent crashed: {exc}",
             "test_result": "fail",
             "downstream_context": "",
             "error": str(exc),
+            "runtime": runtime,
         }
 
-    raw = final_result or (collected_texts[-1] if collected_texts else "")
+    actual_runtime = result.runtime or runtime
+    raw = result.final_text
     logger.info(
         "[%s/%s] Workspace raw response (first 500 chars): %s",
         project, workspace, raw[:500],
@@ -141,36 +138,32 @@ async def run_workspace(
 
     # Layer 1: Direct extraction from final result / last text
     try:
-        return extract_json(raw)
+        parsed = extract_json(raw)
+        parsed.setdefault("runtime", actual_runtime)
+        return parsed
     except ValueError:
         pass
 
-    # Layer 2: Try all collected texts (JSON might be in an earlier block)
-    for text in reversed(collected_texts):
-        try:
-            return extract_json(text)
-        except ValueError:
-            continue
-
     # Layer 3: Repair pass with haiku
     logger.warning("[%s/%s] JSON extraction failed, attempting repair pass", project, workspace)
-    all_text = "\n".join(collected_texts[-3:])  # last 3 blocks
     repaired = await repair_json(
-        all_text[:4000],
+        raw[:4000],
         expected_keys=["changed_files", "summary", "test_result", "downstream_context"],
     )
     if repaired is not None:
         logger.info("[%s/%s] Repair pass succeeded", project, workspace)
+        repaired.setdefault("runtime", actual_runtime)
         return repaired
 
     # Layer 4: Graceful fallback — use all collected text as summary
     logger.warning("[%s/%s] All JSON extraction failed, using raw text as summary", project, workspace)
-    fallback_summary = all_text[:2000] if all_text else raw[:2000] if raw else "No response from workspace"
+    fallback_summary = raw[:2000] if raw else "No response from workspace"
     return {
         "changed_files": [],
         "summary": fallback_summary,
         "test_result": "skip",
         "downstream_context": "",
+        "runtime": actual_runtime,
     }
 
 
@@ -185,6 +178,7 @@ async def _run_remote_workspace(
     host = remote_config["host"]
     port = remote_config.get("port", 9100)
     token = remote_config.get("token", "")
+    runtime = remote_config.get("runtime", "claude")
 
     headers = {"Content-Type": "application/json"}
     if token:
@@ -194,7 +188,11 @@ async def _run_remote_workspace(
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"http://{host}:{port}/execute",
-                json={"task": task, "upstream_context": upstream_context or {}},
+                json={
+                    "task": task,
+                    "runtime": runtime,
+                    "upstream_context": upstream_context or {},
+                },
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(total=None),
             ) as resp:
@@ -206,8 +204,11 @@ async def _run_remote_workspace(
                         "test_result": "fail",
                         "downstream_context": "",
                         "error": body,
+                        "runtime": runtime,
                     }
-                return await resp.json()
+                payload = await resp.json()
+                payload.setdefault("runtime", runtime)
+                return payload
     except Exception as exc:
         return {
             "changed_files": [],
@@ -215,6 +216,7 @@ async def _run_remote_workspace(
             "test_result": "fail",
             "downstream_context": "",
             "error": str(exc),
+            "runtime": runtime,
         }
 
 

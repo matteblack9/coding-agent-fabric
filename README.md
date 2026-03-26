@@ -2,7 +2,46 @@
 
 **Turn any project folder into an AI-orchestrated workspace with Slack and Telegram integration.**
 
-Claude-Code-Tunnels is a plugin that builds a **Project Orchestrator (PO)** layer on top of [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code). Send a message from Slack or Telegram and the orchestrator analyzes the request, identifies the appropriate project and workspace, builds an execution plan with dependency awareness, delegates tasks to workspace-level Claude agents, and returns structured results.
+Claude-Code-Tunnels adds an always-on orchestration layer on top of your project folders. Send a message from Slack or Telegram and the control plane figures out which workspace should handle it, plans phase ordering, runs the task in the configured runtime, and returns structured results.
+
+## Terminology
+
+- **Project Orchestrator (PO)**: The control plane. It receives requests, routes them, builds execution plans, and coordinates work.
+- **Workspace**: A real code or document directory that contains the target work.
+- **Workspace Orchestrator (WO)**: The execution unit for one workspace. A WO runs with one runtime such as `claude`, `codex`, or `opencode`.
+- **Executor**: The component that runs WOs phase by phase, with parallel execution inside a phase and ordered dependencies between phases.
+- **Remote Workspace**: A workspace executed through the remote listener on another host or pod.
+
+## Start Here
+
+```bash
+./install.sh
+.venv/bin/python -m orchestrator.setup_tui
+./start-orchestrator.sh --fg
+```
+
+The setup TUI checks whether the current folder already looks like a PO root, suggests workspace candidates, lets you define PO and WO mappings, enables channels, and writes `orchestrator.yaml` plus `start-orchestrator.sh`.
+
+## How To Run
+
+After setup has written `orchestrator.yaml` and `start-orchestrator.sh`, use these commands from the PO root:
+
+```bash
+# Foreground (recommended for first run / debugging)
+./start-orchestrator.sh --fg
+
+# Background (daemon mode)
+./start-orchestrator.sh
+
+# Re-open setup
+.venv/bin/python -m orchestrator.setup_tui
+
+# View logs
+tail -f /tmp/orchestrator-$(date +%Y%m%d).log
+
+# Stop the background process
+kill $(pgrep -f "orchestrator.main")
+```
 
 ```
  Slack / Telegram
@@ -21,7 +60,7 @@ Claude-Code-Tunnels is a plugin that builds a **Project Orchestrator (PO)** laye
     └─────┬─────┘
           │
     ┌─────▼─────┐
-    │  Executor  │  (phase-by-phase workspace execution)
+    │  Executor  │  (phase-by-phase WO execution)
     │            │
     │  Phase 1:  │──→ [ws-a] [ws-b]  (parallel)
     │  Phase 2:  │──→ [ws-c]         (runs after phase 1)
@@ -56,7 +95,7 @@ Claude Code recently introduced a [Channels feature](https://docs.anthropic.com/
 | **Conversation Memory** | Single session context | Per-source sessions (turn history + state machine) |
 | **Add Custom Channel** | Requires `--dangerously-load-development-channels` | Inherit Python `BaseChannel` — add in minutes |
 | **Security Model** | Sender allowlist only | XML tag isolation + path traversal prevention + prompt injection defense |
-| **Runtime** | Requires Bun | Python only (`pip install`) |
+| **Runtime** | Requires Bun | Python control plane + Node bridge for `codex` / `opencode` |
 | **Permissions Model** | Interactive prompts block execution | `bypassPermissions` support for unattended operation |
 
 **In short**: Claude Code Channels is a raw message bridge into a single session. Claude-Code-Tunnels is a full orchestration layer — each workspace runs in its own isolated session, and one channel connection scales to any number of projects.
@@ -99,7 +138,7 @@ flowchart TB
     style W3 fill:#CECBF6,stroke:#534AB7,color:#26215C
 ```
 
-**No handoff required.** The orchestrator already knows every project's structure via `CLAUDE.md` files and workspace configurations. A teammate doesn't need your local environment, your CLI session, or your explanation of "how things are set up." They just type a message in the channel.
+**No handoff required.** The orchestrator already knows each workspace's structure through guidance files such as `CLAUDE.md`, `AGENTS.md`, and workspace configuration. A teammate doesn't need your local environment, your CLI session, or your explanation of "how things are set up." They just type a message in the channel.
 
 | Scenario | Without Tunnels | With Tunnels |
 |----------|----------------|--------------|
@@ -108,19 +147,19 @@ flowchart TB
 | Urgent hotfix at 3 AM | Someone must SSH in and run commands manually | Anyone in the channel triggers the full pipeline |
 | Knowledge transfer | Docs, meetings, shadowing sessions | The orchestrator *is* the institutional knowledge |
 
-> **One app. One channel. The whole team.** The orchestrator doesn't care who's asking — it routes to the right project, builds the execution plan, and delegates to workspace agents. Your team's velocity is no longer bottlenecked by any single person's availability.
+> **One app. One channel. The whole team.** The orchestrator doesn't care who's asking — it routes to the right workspace, builds the execution plan, and delegates to WOs. Your team's velocity is no longer bottlenecked by any single person's availability.
 
 ---
 
 ## How Delegation Works
 
-The core value of Claude-Code-Tunnels is **delegation** — even with dozens of projects and workspaces, the PO analyzes a single natural-language request, identifies the right targets, builds a dependency-aware execution plan, and delegates each piece to the appropriate workspace agent. You never have to specify which project or workspace to touch.
+The core value of Claude-Code-Tunnels is **delegation** — even with dozens of projects and workspaces, the PO analyzes a single natural-language request, identifies the right targets, builds a dependency-aware execution plan, and delegates each piece to the appropriate WO. You never have to specify which project or workspace to touch.
 
 Two properties make this scale:
 
-**1. Isolated sessions per workspace.** Every delegation spawns a *fresh* Claude session with `cwd=workspace/` and loads only that workspace's `.claude/` settings and memory. Each agent works with full focus on exactly one workspace — no context bleed between workspaces, no shared state.
+**1. Isolated sessions per workspace.** Every delegation spawns a fresh runtime session with `cwd=workspace/` and loads only that workspace's guidance and local memory. Each WO works with full focus on exactly one workspace — no context bleed between workspaces, no shared state.
 
-**2. Unbounded tree depth.** One channel connection is all you need. Add more projects, add more workspaces inside them, add remote workspaces on other machines — the tree can grow arbitrarily deep. The PO discovers structure at runtime by reading `CLAUDE.md` files, so there's nothing to reconfigure as the tree grows.
+**2. Unbounded tree depth.** One channel connection is all you need. Add more projects, add more workspaces inside them, add remote workspaces on other machines — the tree can grow arbitrarily deep. The PO discovers structure at runtime by reading workspace guidance files, so there is very little to reconfigure as the tree grows.
 
 ### Delegation Flow
 
@@ -144,7 +183,7 @@ sequenceDiagram
     RT->>RT: identify target project(s)
     RT->>PO: project list
 
-    PO->>PO: read CLAUDE.md → analyze dependencies
+    PO->>PO: read workspace guidance → analyze dependencies
     PO->>EX: phased execution plan
 
     rect rgb(225, 245, 238)
@@ -327,7 +366,7 @@ flowchart LR
     style C2 fill:#FAEEDA,stroke:#854F0B
 ```
 
-Remote workspaces are delegated over HTTP — the executor sends tasks to a lightweight listener running on the remote host or K8s pod, which runs `claude-agent-sdk query(cwd=...)` locally.
+Remote workspaces are delegated over HTTP — the executor sends tasks to a lightweight listener running on the remote host or K8s pod, which executes the configured runtime locally.
 
 #### Scenario 4 — 4-phase complex pipeline
 
@@ -372,24 +411,21 @@ Each phase strictly depends on the previous one. The PO ensures that no workspac
 ## Quick Start
 
 ```bash
-# 1. Clone
 git clone https://github.com/matteblack9/claude-code-tunnels.git
 cd claude-code-tunnels
 
-# 2. Install
-chmod +x install.sh && ./install.sh
-
-# 3. Set up from your project directory
-cd /path/to/your/projects
-/setup-orchestrator
+./install.sh
+.venv/bin/python -m orchestrator.setup_tui
+./start-orchestrator.sh --fg
 ```
 
-The `/setup-orchestrator` command interactively guides you through:
-1. Enter project root path
-2. Copy orchestrator code
-3. Auto-discover workspaces
-4. Connect preferred channel (Slack/Telegram)
-5. Test the connection
+The setup TUI guides you through:
+1. Checking whether the current folder already looks like a PO root
+2. Suggesting PO root, ARCHIVE path, and workspace candidates
+3. Defining WOs for each selected workspace
+4. Choosing channel enablement and runtime defaults
+5. Writing `orchestrator.yaml` and `start-orchestrator.sh`
+6. Showing the exact foreground and background start commands
 
 ---
 
@@ -397,7 +433,8 @@ The `/setup-orchestrator` command interactively guides you through:
 
 | Command | Description |
 |---------|-------------|
-| `/setup-orchestrator` | Full install wizard — copy code, discover workspaces, connect channels |
+| `.venv/bin/python -m orchestrator.setup_tui` | Full-screen setup wizard — classify current folder, suggest workspaces, define WOs, and write config |
+| `/setup-orchestrator` | Plugin skill shortcut that launches the setup TUI workflow |
 | `/connect-slack` | Add a Slack channel to an existing orchestrator |
 | `/connect-telegram` | Add a Telegram channel to an existing orchestrator |
 | `/setup-remote-project` | Deploy listener to remote host (SSH/kubectl) to access remote projects |
@@ -449,7 +486,7 @@ your-projects/
 |-------|-------|-----------|------|
 | Router | Sonnet | 8 | Fast project identification |
 | PO | Opus | 15 | Deep planning with dependency analysis |
-| Executor | Default | 100 | Full workspace code modification |
+| Executor | Default | 5 | Full workspace code modification |
 | DirectHandler | Sonnet | 30 | Handle other tasks (outside workspaces) |
 | JSON Repair | Haiku | 1 | Cost-efficient malformed JSON recovery |
 
@@ -540,10 +577,11 @@ Use remote workspaces when your project lives on a different server or Kubernete
 # → Enter: pod, namespace, remote path, port
 ```
 
-The listener is a lightweight HTTP server that receives tasks and runs `claude-agent-sdk query(cwd=local_path/)` on the remote server. Remote host requirements:
+The listener is a lightweight HTTP server that receives tasks and runs the configured runtime on the remote server. Remote host requirements:
 - Python 3.10+
-- `claude-agent-sdk` and `aiohttp` installed
-- Claude Code CLI registered in PATH
+- `claude-agent-sdk` and `aiohttp` for `claude`
+- `codex` CLI for `codex`
+- `opencode` CLI plus provider credentials for `opencode`
 
 ### Configuration
 
@@ -674,7 +712,7 @@ Modify the system prompt in `orchestrator/direct_handler.py` to integrate your o
 
 ### Customize Workspace Behavior
 
-Control executor agent behavior via each workspace's `CLAUDE.md`. Add build commands, test instructions, coding conventions, etc.
+Control WO behavior via each workspace's guidance files. `CLAUDE.md` still works for Claude, and `AGENTS.md` is available for Codex and OpenCode-oriented workflows. Add build commands, test instructions, coding conventions, and runtime notes there.
 
 ---
 
@@ -685,27 +723,12 @@ Control executor agent behavior via each workspace's `CLAUDE.md`. Add build comm
 | `claude-agent-sdk` | Always | Core orchestration |
 | `aiohttp` | Always | HTTP server/client |
 | `pyyaml` | Always | Config file loading |
+| `textual` | During setup | Setup TUI |
+| `@openai/codex-sdk` | If using Codex | Node bridge runtime |
+| `@opencode-ai/sdk` | If using OpenCode | Node bridge runtime |
 | `slack-bolt` + `slack-sdk` | If using Slack | Socket Mode |
 
 Telegram uses `aiohttp` (already a required dependency).
-
----
-
-## Running
-
-```bash
-# Foreground (view logs in terminal)
-./start-orchestrator.sh --fg
-
-# Background (daemon mode)
-./start-orchestrator.sh
-
-# View logs
-tail -f /tmp/orchestrator-$(date +%Y%m%d).log
-
-# Stop
-kill $(pgrep -f "orchestrator.main")
-```
 
 ---
 

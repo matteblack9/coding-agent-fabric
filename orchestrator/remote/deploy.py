@@ -44,6 +44,7 @@ def deploy_via_ssh(
     remote_cwd: str,
     port: int = 9100,
     token: str = "",
+    runtime: str = "claude",
     user: str = "",
     key_file: str = "",
     verify_health: bool = True,
@@ -81,7 +82,11 @@ def deploy_via_ssh(
     )
 
     # Step 4: Start listener
-    env_vars = f"LISTENER_CWD={shlex.quote(remote_cwd)} LISTENER_PORT={port}"
+    env_vars = (
+        f"LISTENER_CWD={shlex.quote(remote_cwd)} "
+        f"LISTENER_PORT={port} "
+        f"LISTENER_RUNTIME={shlex.quote(runtime)}"
+    )
     if token:
         env_vars += f" LISTENER_TOKEN={shlex.quote(token)}"
 
@@ -111,6 +116,7 @@ def deploy_via_kubectl(
     remote_cwd: str = "/workspace",
     port: int = 9100,
     token: str = "",
+    runtime: str = "claude",
     kubeconfig: str = "",
     verify_health: bool = True,
 ) -> str:
@@ -158,7 +164,7 @@ def deploy_via_kubectl(
     subprocess.run(kill_cmd, capture_output=True, timeout=15)
 
     # Step 4: Start listener
-    env_vars = f"LISTENER_CWD={remote_cwd} LISTENER_PORT={port}"
+    env_vars = f"LISTENER_CWD={remote_cwd} LISTENER_PORT={port} LISTENER_RUNTIME={runtime}"
     if token:
         env_vars += f" LISTENER_TOKEN={token}"
 

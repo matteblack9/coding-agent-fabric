@@ -5,16 +5,9 @@ Unlike PO (planner), this agent is an executor — it performs the task and retu
 """
 
 import logging
-from pathlib import Path
-
-from claude_agent_sdk import (
-    query,
-    ClaudeAgentOptions,
-    AssistantMessage,
-    ResultMessage,
-)
 
 from orchestrator import BASE
+from orchestrator.runtime import RuntimeInvocation, execute_runtime
 from orchestrator.sanitize import wrap_user_input
 
 logger = logging.getLogger(__name__)
@@ -139,51 +132,37 @@ NEVER access files outside the project directory except ARCHIVE/ for API credent
 
 async def handle_direct_request(user_message: str) -> str:
     """Execute a direct (non-project) request and return the answer text."""
-    stderr_lines: list[str] = []
-
-    options = ClaudeAgentOptions(
-        cwd=str(BASE),
-        system_prompt=DIRECT_HANDLER_SYSTEM_PROMPT,
-        allowed_tools=[
-            "Read", "Glob", "Grep", "Bash",
-            "WebFetch", "WebSearch",
-            "mcp__github_enterprise__*",
-            "mcp__jira__*",
-            "mcp__confluence__*",
-            "mcp__playwright__*",
-        ],
-        max_turns=30,
-        setting_sources=["project"],
-        permission_mode="bypassPermissions",
-        model="sonnet",
-        stderr=lambda line: stderr_lines.append(line),
-    )
-
-    collected_texts: list[str] = []
-    final_result: str | None = None
-
     sandboxed_prompt = wrap_user_input(user_message)
 
     try:
-        async for message in query(prompt=sandboxed_prompt, options=options):
-            if isinstance(message, AssistantMessage):
-                for block in message.content:
-                    if hasattr(block, "text"):
-                        collected_texts.append(block.text)
-            elif isinstance(message, ResultMessage):
-                if message.result:
-                    final_result = message.result
+        result = await execute_runtime(
+            RuntimeInvocation(
+                role="direct_handler",
+                cwd=str(BASE),
+                prompt=sandboxed_prompt,
+                system_prompt=DIRECT_HANDLER_SYSTEM_PROMPT,
+                allowed_tools=[
+                    "Read", "Glob", "Grep", "Bash",
+                    "WebFetch", "WebSearch",
+                    "mcp__github_enterprise__*",
+                    "mcp__jira__*",
+                    "mcp__confluence__*",
+                    "mcp__playwright__*",
+                ],
+                max_turns=30,
+                setting_sources=["project"],
+                permission_mode="bypassPermissions",
+                model="sonnet",
+                sandbox_mode="workspace-write",
+                approval_policy="never",
+                network_access_enabled=True,
+            )
+        )
     except Exception as exc:
-        if stderr_lines:
-            logger.error("DirectHandler stderr:\n%s", "\n".join(stderr_lines))
         logger.error("DirectHandler query() failed: %s", exc)
         return f"An error occurred while processing your request: {type(exc).__name__}: {str(exc)[:300]}"
 
-    if stderr_lines:
-        for line in stderr_lines[-20:]:
-            logger.debug("DirectHandler stderr: %s", line)
-
-    answer = final_result or (collected_texts[-1] if collected_texts else "")
+    answer = result.final_text
     if not answer:
         return "The request was processed but no result was generated. Please try again."
 

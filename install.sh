@@ -1,62 +1,97 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PLUGIN_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+VENV_DIR="$ROOT_DIR/.venv"
 
-echo "======================================"
-echo "  Claude-Code-Tunnels Plugin Installer"
-echo "======================================"
-echo ""
-echo "Plugin source: $PLUGIN_DIR"
-echo ""
-
-# Step 1: Install Python dependencies
-echo "[1/2] Installing Python dependencies..."
-pip install claude-agent-sdk aiohttp pyyaml 2>/dev/null || {
-    echo "  pip install failed. Please install manually:"
-    echo "    pip install claude-agent-sdk aiohttp pyyaml"
+find_working_bin() {
+    local name="$1"
+    shift
+    IFS=':' read -r -a dirs <<< "${PATH:-}"
+    for dir in "${dirs[@]}"; do
+        local candidate="$dir/$name"
+        if [[ -x "$candidate" ]] && "$candidate" "$@" >/dev/null 2>&1; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    return 1
 }
 
-# Step 2: Verify
-echo "[2/2] Verifying installation..."
-
-if python3 -c "import claude_agent_sdk" 2>/dev/null; then
-    echo "  claude-agent-sdk: OK"
-else
-    echo "  claude-agent-sdk: NOT FOUND (install with: pip install claude-agent-sdk)"
+PYTHON_BIN="$(find_working_bin python3 --version || true)"
+if [[ -z "$PYTHON_BIN" ]]; then
+    PYTHON_BIN="$(find_working_bin python --version || true)"
+fi
+if [[ -z "$PYTHON_BIN" ]]; then
+    echo "Python 3 is required."
+    exit 1
 fi
 
-if python3 -c "import aiohttp" 2>/dev/null; then
-    echo "  aiohttp: OK"
+NODE_BIN="$(find_working_bin node --version || true)"
+NPM_BIN="$(find_working_bin npm --version || true)"
+
+echo "=========================================="
+echo "  claude-code-tunnels bootstrap installer"
+echo "=========================================="
+echo ""
+echo "root: $ROOT_DIR"
+echo "python: $PYTHON_BIN"
+if [[ -n "$NODE_BIN" ]]; then
+    echo "node: $NODE_BIN"
 else
-    echo "  aiohttp: NOT FOUND"
+    echo "node: not found"
+fi
+if [[ -n "$NPM_BIN" ]]; then
+    echo "npm: $NPM_BIN"
+else
+    echo "npm: not found"
+fi
+echo ""
+
+echo "[1/3] Creating local virtualenv"
+"$PYTHON_BIN" -m venv "$VENV_DIR"
+
+echo "[2/3] Installing Python dependencies"
+"$VENV_DIR/bin/pip" install -U pip
+"$VENV_DIR/bin/pip" install -r "$ROOT_DIR/requirements.txt" -r "$ROOT_DIR/requirements-dev.txt"
+
+echo "[3/3] Installing Node bridge dependencies"
+if [[ -n "$NPM_BIN" ]]; then
+    (cd "$ROOT_DIR" && "$NPM_BIN" install)
+else
+    echo "Skipping npm install because no working npm binary was found."
+    echo "Codex/OpenCode runtimes will not work until Node.js and npm are available."
 fi
 
-if python3 -c "import yaml" 2>/dev/null; then
-    echo "  pyyaml: OK"
+echo ""
+echo "Verification"
+echo "-----------"
+"$VENV_DIR/bin/python" -c "import claude_agent_sdk, aiohttp, yaml, textual; print('python packages: OK')"
+if command -v claude >/dev/null 2>&1; then
+    echo "claude: $(claude --version | head -1)"
 else
-    echo "  pyyaml: NOT FOUND"
+    echo "claude: not found"
+fi
+if command -v codex >/dev/null 2>&1; then
+    echo "codex: $(codex --version | head -1)"
+    echo "codex auth: $(codex login status | head -1)"
+else
+    echo "codex: not found"
+fi
+if command -v opencode >/dev/null 2>&1; then
+    echo "opencode: $(opencode --version | tail -1)"
+    echo "opencode providers: $(opencode providers list | tail -1)"
+else
+    echo "opencode: not found"
 fi
 
 echo ""
-echo "======================================"
-echo "  Installation complete!"
-echo "======================================"
+echo "Next step"
+echo "---------"
+echo "Run the setup TUI from the project root:"
+echo "  cd $ROOT_DIR"
+echo "  ./.venv/bin/python -m orchestrator.setup_tui"
 echo ""
-echo "Usage as Claude Code plugin:"
-echo "  claude --plugin-dir $PLUGIN_DIR"
-echo ""
-echo "Skills available (namespaced as /claude-code-tunnels:<skill>):"
-echo "  /claude-code-tunnels:setup-orchestrator"
-echo "  /claude-code-tunnels:connect-slack"
-echo "  /claude-code-tunnels:connect-telegram"
-echo "  /claude-code-tunnels:setup-remote-project"
-echo "  /claude-code-tunnels:setup-remote-workspace"
-echo ""
-echo "Or manually copy orchestrator code:"
-echo "  1. cp -r $PLUGIN_DIR/orchestrator/ ./orchestrator/"
-echo "  2. cp $PLUGIN_DIR/orchestrator.yaml ./orchestrator.yaml"
-echo "  3. Edit orchestrator.yaml with your paths"
-echo "  4. cp $PLUGIN_DIR/templates/start-orchestrator.sh.template ./start-orchestrator.sh"
-echo "  5. ./start-orchestrator.sh"
-echo ""
+echo "After setup finishes, it will explain:"
+echo "  ./start-orchestrator.sh --fg"
+echo "  ./start-orchestrator.sh"

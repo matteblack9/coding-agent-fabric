@@ -155,8 +155,10 @@ def format_results(
                 test_result = "fail" if error else result.get("test_result", "skip")
                 summary = result.get("summary") or "No results"
                 changed = result.get("changed_files", [])
+                runtime = result.get("runtime")
+                runtime_suffix = f" ({runtime})" if runtime and runtime != "claude" else ""
 
-                result_lines.append(f"[{test_result}] *{ws}*")
+                result_lines.append(f"[{test_result}] *{ws}*{runtime_suffix}")
                 result_lines.append(summary)
                 if changed:
                     changed_str = ", ".join(f"`{f}`" for f in changed)

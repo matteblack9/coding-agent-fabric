@@ -6,14 +6,8 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from claude_agent_sdk import (
-    query,
-    ClaudeAgentOptions,
-    AssistantMessage,
-    ResultMessage,
-)
-
-from orchestrator import BASE, extract_json, repair_json
+from orchestrator import BASE, extract_json, list_workspace_ids, repair_json, uses_workspace_registry
+from orchestrator.runtime import RuntimeInvocation, execute_runtime
 from orchestrator.sanitize import wrap_user_input, validate_project_name
 
 logger = logging.getLogger(__name__)
@@ -72,44 +66,41 @@ async def route_request(
 ) -> RouteResult:
     """Identify target project(s) from user message using a lightweight agent call."""
     base = base_dir or BASE
-
-    stderr_lines: list[str] = []
-
-    options = ClaudeAgentOptions(
-        cwd=str(base),
-        system_prompt=ROUTER_SYSTEM_PROMPT,
-        allowed_tools=["Read", "Glob", "Grep"],
-        max_turns=8,
-        setting_sources=["project"],
-        permission_mode="bypassPermissions",
-        model="sonnet",
-        stderr=lambda line: stderr_lines.append(line),
-    )
-
-    collected_texts: list[str] = []
-    final_result: str | None = None
+    system_prompt = ROUTER_SYSTEM_PROMPT
+    if uses_workspace_registry():
+        workspace_ids = ", ".join(list_workspace_ids(base))
+        system_prompt += (
+            "\n\n## Single-project mode\n"
+            "- The current working directory is the only project root.\n"
+            '- If the request is tied to workspace execution, return {"project": ".", ...}.\n'
+            '- Only return {"no_project": true} for requests that are clearly unrelated to workspace work.\n'
+            f"- Available workspace ids: {workspace_ids or '(none configured)'}.\n"
+        )
 
     sandboxed_prompt = wrap_user_input(user_message)
 
     try:
-        async for message in query(prompt=sandboxed_prompt, options=options):
-            if isinstance(message, AssistantMessage):
-                for block in message.content:
-                    if hasattr(block, "text"):
-                        collected_texts.append(block.text)
-            elif isinstance(message, ResultMessage):
-                if message.result:
-                    final_result = message.result
+        result = await execute_runtime(
+            RuntimeInvocation(
+                role="router",
+                cwd=str(base),
+                prompt=sandboxed_prompt,
+                system_prompt=system_prompt,
+                allowed_tools=["Read", "Glob", "Grep"],
+                max_turns=8,
+                setting_sources=["project"],
+                permission_mode="bypassPermissions",
+                model="sonnet",
+                sandbox_mode="read-only",
+                approval_policy="never",
+                network_access_enabled=False,
+            )
+        )
     except Exception as exc:
-        if stderr_lines:
-            logger.error("Router stderr:\n%s", "\n".join(stderr_lines))
         logger.error("Router query() failed: %s", exc)
         return RouteResult(projects=[], refined_message=user_message)
 
-    if stderr_lines:
-        logger.error("Router stderr:\n%s", "\n".join(stderr_lines))
-
-    raw = final_result or (collected_texts[-1] if collected_texts else "")
+    raw = result.final_text
 
     try:
         parsed = extract_json(raw)
@@ -147,6 +138,11 @@ async def route_request(
 
     if "project" in parsed:
         proj = parsed["project"]
+        if proj == ".":
+            return RouteResult(
+                projects=["."],
+                refined_message=parsed.get("refined_message", user_message),
+            )
         if not validate_project_name(proj, base):
             logger.warning("Router returned invalid project name (blocked): %s", proj)
             return RouteResult(projects=[], refined_message=user_message)

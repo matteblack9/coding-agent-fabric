@@ -1,0 +1,24 @@
+# {{PROJECT_NAME}}
+
+## Role: Project Orchestrator
+
+This directory is the Project Orchestrator root. It coordinates Workspaces and Workspace Orchestrators (WOs), but it does not directly edit workspace code.
+
+## Terminology
+
+- `PO`: The control plane that receives requests, routes them, and builds phased execution plans.
+- `Workspace`: A working directory that contains code or documents.
+- `WO`: The runtime-specific execution unit attached to one workspace.
+
+## Runtime Notes
+
+- `claude` reads `CLAUDE.md` and `.claude/`
+- `codex` reads `AGENTS.md`
+- `opencode` can reuse `AGENTS.md` and Claude-style project guidance
+
+## Operating Rules
+
+- Keep orchestrator-level config in `orchestrator.yaml`
+- Store channel credentials under `ARCHIVE/`
+- Start the control plane with `./start-orchestrator.sh`
+- Delegate all real work to configured workspaces

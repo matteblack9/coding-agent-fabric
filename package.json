@@ -1,0 +1,12 @@
+{
+  "name": "claude-code-tunnels-bridge",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test bridge/tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@openai/codex-sdk": "0.116.0",
+    "@opencode-ai/sdk": "1.3.2"
+  }
+}

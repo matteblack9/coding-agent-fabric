@@ -1,6 +1,6 @@
 {
   "name": "claude-code-tunnels",
-  "description": "Turn any folder of projects into an AI-orchestrated workspace with Slack and Telegram integration. Creates a Project Orchestrator (PO) that routes requests, plans execution with dependency-aware phases, delegates to workspace-level Claude agents, and returns structured results.",
+  "description": "Turn any folder of projects into an AI-orchestrated workspace with Slack and Telegram integration. Creates a Project Orchestrator (PO) that routes requests, plans execution with dependency-aware phases, delegates to workspace-level runtime agents, and returns structured results.",
   "version": "1.0.0",
   "author": {
     "name": "Claude Tunnels"

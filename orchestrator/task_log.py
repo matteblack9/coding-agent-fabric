@@ -33,6 +33,8 @@ def _enforce_retention(tasks_dir: Path) -> None:
 
 
 def _determine_status(results: dict[str, dict]) -> str:
+    if not results:
+        return "failure"
     has_fail = any(
         r.get("test_result") == "fail" or "error" in r for r in results.values()
     )
@@ -67,8 +69,7 @@ async def write_task_log(
     log_dir = tasks_dir / date_str / project
     log_dir.mkdir(parents=True, exist_ok=True)
 
-    time_prefix = now.strftime("%H%M")
-    log_path = log_dir / f"{time_prefix}_{task_label}.md"
+    log_path = log_dir / f"{task_id}_{task_label}.md"
     status = _determine_status(results)
 
     lines = [
@@ -92,7 +93,7 @@ async def write_task_log(
         if i == 1:
             lines.append(f"- Phase {i}: {ws_str} (independent)")
         else:
-            lines.append(f"- Phase {i}: {ws_str} (depends on previous phase result)")
+            lines.append(f"- Phase {i}: {ws_str} (incorporates previous phase results)")
 
     lines.extend(["", "## Results"])
 
@@ -102,8 +103,11 @@ async def write_task_log(
         lines.append(f"\n### {workspace} [{test_result}]")
 
         changed = result.get("changed_files", [])
+        runtime = result.get("runtime")
         if changed:
             lines.append(f"- changed: {', '.join(changed)}")
+        if runtime:
+            lines.append(f"- runtime: {runtime}")
 
         summary = result.get("summary", "")
         if summary:
