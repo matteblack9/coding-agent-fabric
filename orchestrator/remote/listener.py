@@ -39,6 +39,7 @@ WORKSPACE_CWD = Path(os.environ.get("LISTENER_CWD", os.getcwd())).resolve()
 LISTENER_PORT = int(os.environ.get("LISTENER_PORT", "9100"))
 LISTENER_TOKEN = os.environ.get("LISTENER_TOKEN", "")
 LISTENER_RUNTIME = os.environ.get("LISTENER_RUNTIME", "claude").strip().lower() or "claude"
+CURSOR_CLI_TIMEOUT_SECONDS = 30 * 60
 
 RESPONSE_FORMAT_INSTRUCTION = """
 ## Response format (CRITICAL — must be followed exactly)
@@ -143,17 +144,23 @@ async def run_claude(prompt: str) -> str:
     return final_result or (collected_texts[-1] if collected_texts else "")
 
 
-def _run_subprocess(command: list[str]) -> str:
+def _run_subprocess(command: list[str], timeout: int | None = None) -> str:
     try:
         proc = subprocess.run(
             command,
             cwd=str(WORKSPACE_CWD),
             capture_output=True,
             text=True,
-            timeout=None,
+            timeout=timeout,
         )
     except FileNotFoundError as exc:
         raise RuntimeError(f"{command[0]} not found on the remote host.") from exc
+    except subprocess.TimeoutExpired as exc:
+        if timeout is None:
+            raise RuntimeError(f"{command[0]} timed out.") from exc
+        raise RuntimeError(
+            f"{command[0]} timed out after {timeout // 60} minutes on the remote host."
+        ) from exc
 
     stdout = (proc.stdout or "").strip()
     stderr = (proc.stderr or "").strip()
@@ -234,7 +241,7 @@ def run_cursor(prompt: str) -> str:
         "--force",
         prompt,
     ]
-    stdout = _run_subprocess(command)
+    stdout = _run_subprocess(command, timeout=CURSOR_CLI_TIMEOUT_SECONDS)
     return _extract_cursor_text_from_json(stdout) or stdout
 
 

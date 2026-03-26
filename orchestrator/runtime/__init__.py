@@ -19,6 +19,7 @@ from orchestrator import resolve_runtime_name
 from orchestrator.runtime.bridge import get_bridge_daemon
 
 logger = logging.getLogger(__name__)
+CURSOR_CLI_TIMEOUT_SECONDS = 30 * 60
 
 
 @dataclass(slots=True)
@@ -196,10 +197,14 @@ def _execute_cursor(invocation: RuntimeInvocation) -> RuntimeExecution:
             cwd=invocation.cwd,
             capture_output=True,
             text=True,
-            timeout=None,
+            timeout=CURSOR_CLI_TIMEOUT_SECONDS,
         )
     except FileNotFoundError as exc:
         raise RuntimeError("cursor-agent not found. Install Cursor CLI first.") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"cursor-agent timed out after {CURSOR_CLI_TIMEOUT_SECONDS // 60} minutes."
+        ) from exc
 
     stdout = (proc.stdout or "").strip()
     stderr = (proc.stderr or "").strip()
