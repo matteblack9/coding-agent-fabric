@@ -22,7 +22,7 @@ Guidance is runtime-aware:
 
 - `claude` prefers `CLAUDE.md` and existing `.claude/` memory/rules
 - `codex` prefers `AGENTS.md` and explicit repo instructions
-- `opencode` also works best with `AGENTS.md`, and requires provider login before execution
+- `opencode` prefers `AGENTS.md`, can use `opencode.json` and `.opencode/skills/`, and requires provider login before execution
 
 Short glossary:
 
@@ -66,8 +66,8 @@ graph LR
         SINGLE -->|"decompose"| WC
 
         subgraph IB["isolated workspace boundaries"]
-            WA["WO: backend"] --> WA_CTX["AGENTS.md / CLAUDE.md / .claude"]
-            WB["WO: frontend"] --> WB_CTX["AGENTS.md / CLAUDE.md / .claude"]
+            WA["WO: backend"] --> WA_CTX["AGENTS.md / CLAUDE.md / .claude / .opencode"]
+            WB["WO: frontend"] --> WB_CTX["AGENTS.md / CLAUDE.md / .claude / .opencode"]
             WC["WO: staging"] --> WC_CTX["runtime config + remote listener"]
         end
     end
@@ -163,7 +163,7 @@ flowchart TB
     W3 --> T2
 ```
 
-**No handoff required.** The orchestrator already knows workspace structure through `orchestrator.yaml`, shared instructions in `AGENTS.md`, Claude-specific context in `CLAUDE.md` or `.claude/`, and workspace-specific runtime settings. A teammate does not need your local terminal state or your memory of "how this repo works."
+**No handoff required.** The orchestrator already knows workspace structure through `orchestrator.yaml`, shared instructions in `AGENTS.md`, Claude-specific context in `CLAUDE.md` or `.claude/`, OpenCode-specific config in `opencode.json` or `.opencode/`, and workspace-specific runtime settings. A teammate does not need your local terminal state or your memory of "how this repo works."
 
 | Scenario | Without Tunnels | With Tunnels |
 |----------|----------------|--------------|
@@ -334,7 +334,7 @@ The setup TUI:
 1. checks whether the current folder already looks like a `PO` root
 2. suggests the `PO` root, `ARCHIVE` path, and workspace candidates
 3. lets you assign one `WO` per selected workspace
-4. writes `orchestrator.yaml`, `start-orchestrator.sh`, and root runtime guidance files (`AGENTS.md`, `CLAUDE.md`) when needed
+4. writes `orchestrator.yaml`, `start-orchestrator.sh`, and root runtime guidance files (`AGENTS.md`, `CLAUDE.md`, plus `opencode.json` / `.opencode/` when OpenCode is selected) when needed
 5. shows the exact commands to run next
 
 ---
@@ -444,6 +444,10 @@ po-root/
 ├── skills/
 ├── orchestrator.yaml
 ├── start-orchestrator.sh
+├── AGENTS.md
+├── CLAUDE.md
+├── opencode.json
+├── .opencode/
 ├── package.json
 ├── requirements.txt
 └── requirements-dev.txt
@@ -528,8 +532,8 @@ Runtime guidance is runtime-aware. The same repository can expose different inst
 | Runtime | Primary guidance | Characteristics | Best use |
 |---------|------------------|-----------------|----------|
 | `claude` | `CLAUDE.md` and `.claude/` | Hierarchical project memory, rules, and existing Claude workflows are loaded naturally through the Python SDK path | Reusing existing Claude Code project setups without rewriting guidance |
-| `codex` | `AGENTS.md` | Works best with explicit repo instructions and structured task framing; the Node bridge is also used for schema-driven output | Shared coding rules, step-by-step repo policies, and structured execution |
-| `opencode` | `AGENTS.md` | Similar guidance style to Codex, but requires provider login and runs through the OpenCode SDK session flow | Multi-runtime teams that want one shared instruction file outside the Claude ecosystem |
+| `codex` | `AGENTS.md` | Works best with explicit repo instructions and structured task framing; there is no parallel `.codex/` project convention in this setup | Shared coding rules, step-by-step repo policies, and structured execution |
+| `opencode` | `AGENTS.md`, optionally `opencode.json` and `.opencode/skills/` | Similar repo-instruction style to Codex, but with extra project-local config and skills support; also requires provider login and runs through the OpenCode SDK session flow | Teams that want AGENTS-based guidance plus OpenCode-specific config or project skills |
 
 Supporting files:
 
@@ -538,11 +542,14 @@ Supporting files:
 | `AGENTS.md` | Primarily `codex` and `opencode`; also useful as shared human-readable guidance | Canonical runtime-neutral operating rules |
 | `CLAUDE.md` | `claude` | Claude-specific project and workspace guidance |
 | `.claude/` | `claude` and legacy Claude setups | Existing Claude memory, rules, and skills |
+| `opencode.json` | `opencode` | Project-local OpenCode config file |
+| `.opencode/skills/` | `opencode` | Project-local OpenCode skills |
 
 Recommended pattern:
 
 - Put shared workflow rules, repo conventions, and task expectations in `AGENTS.md`
 - Keep `CLAUDE.md` for Claude-specific prompt framing or compatibility with existing Claude projects
+- Use `opencode.json` and `.opencode/skills/` only when you need OpenCode-specific config or project-local skills
 - Keep `.claude/` only when you actively rely on Claude memory, rules, or skills
 
 ### Session State Machine
@@ -775,7 +782,7 @@ allowed_users : username1, username2
 1. **User-controlled input isolation**: channel content is wrapped and handled separately from system instructions
 2. **Workspace validation**: only configured or discovered real workspaces are eligible targets
 3. **Path traversal prevention**: invalid names and blocked paths are rejected
-4. **Sensitive directory blocking**: `ARCHIVE/`, `.tasks/`, `.git/`, `.claude/`, and `orchestrator/` are excluded from targeting
+4. **Sensitive directory blocking**: `ARCHIVE/`, `.tasks/`, `.git/`, `.claude/`, `.opencode/`, and `orchestrator/` are excluded from targeting
 5. **Workspace sandboxing**: each WO executes with its own `cwd`
 6. **Channel confirmation**: channel execution is gated by explicit confirm/cancel state
 
@@ -816,9 +823,10 @@ Control WO behavior through guidance files:
 
 - `AGENTS.md` should hold shared repo rules for `codex` and `opencode`, and is the best default for runtime-neutral instructions
 - `CLAUDE.md` should hold Claude-specific framing when the `claude` runtime needs extra project context
+- `opencode.json` and `.opencode/skills/` should hold OpenCode-only config and project-local skills when you need them
 - `.claude/` should be kept only for Claude memory, rules, and skills you still actively depend on
 
-The setup flow creates root-level `AGENTS.md` and `CLAUDE.md` when missing. In practice, treat `AGENTS.md` as the shared contract across runtimes, then layer Claude-only behavior in `CLAUDE.md` or `.claude/` where necessary.
+The setup flow creates root-level `AGENTS.md` and `CLAUDE.md` when missing, and also scaffolds `opencode.json` plus `.opencode/` when OpenCode is selected. In practice, treat `AGENTS.md` as the shared contract across runtimes, then layer Claude-only behavior in `CLAUDE.md` or `.claude/`, and OpenCode-only behavior in `opencode.json` or `.opencode/`.
 
 ---
 

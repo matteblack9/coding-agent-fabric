@@ -88,7 +88,34 @@ def test_write_setup_files_creates_scripts_and_guidance(tmp_path):
     assert summary.start_script_path.exists()
     assert (tmp_path / "CLAUDE.md").exists()
     assert (tmp_path / "AGENTS.md").exists()
+    assert not (tmp_path / "opencode.json").exists()
 
     instructions = final_instruction_text(summary)
     assert "./start-orchestrator.sh --fg" in instructions
     assert "python -m orchestrator.setup_tui" in instructions
+
+
+def test_write_setup_files_creates_opencode_files_when_selected(tmp_path):
+    summary = write_setup_files(
+        po_root=tmp_path,
+        archive_path=tmp_path / "ARCHIVE",
+        slack_enabled=False,
+        telegram_enabled=True,
+        default_runtime="claude",
+        executor_runtime="claude",
+        candidates=[
+            WorkspaceCandidate(
+                workspace_id="staging",
+                relative_path="services/staging",
+                score=4,
+                runtime="opencode",
+                mode="local",
+            )
+        ],
+        python_bin="/usr/bin/python3",
+    )
+
+    assert (tmp_path / "opencode.json").exists()
+    assert (tmp_path / ".opencode" / "README.md").exists()
+    assert (tmp_path / ".opencode" / "skills").is_dir()
+    assert any(path.name == "opencode.json" for path in summary.written_files)

@@ -9,7 +9,7 @@ from pathlib import Path
 import yaml
 
 logger = logging.getLogger(__name__)
-BLOCKED_DIRS = {"ARCHIVE", ".tasks", "orchestrator", ".claude", ".git"}
+BLOCKED_DIRS = {"ARCHIVE", ".tasks", "orchestrator", ".claude", ".opencode", ".git"}
 
 
 def get_config_path() -> Path:

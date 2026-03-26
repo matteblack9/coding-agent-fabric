@@ -445,6 +445,25 @@ def render_root_guidance(po_root: Path) -> tuple[str, str]:
     return claude_md, agents_md
 
 
+def render_opencode_files() -> tuple[str, str]:
+    """Render project-local OpenCode config and guidance stub."""
+    templates_dir = Path(__file__).resolve().parents[1] / "templates"
+    opencode_json = _render_template(templates_dir / "opencode.json.template", {})
+    opencode_readme = _render_template(templates_dir / "opencode-README.md.template", {})
+    return opencode_json, opencode_readme
+
+
+def should_initialize_opencode(
+    default_runtime: str,
+    executor_runtime: str,
+    candidates: list[WorkspaceCandidate],
+) -> bool:
+    """Return True when setup should scaffold project-local OpenCode files."""
+    if default_runtime == "opencode" or executor_runtime == "opencode":
+        return True
+    return any(candidate.selected and candidate.runtime == "opencode" for candidate in candidates)
+
+
 def write_setup_files(
     po_root: Path,
     archive_path: Path,
@@ -472,6 +491,7 @@ def write_setup_files(
     )
     start_script = render_start_script(po_root=po_root, python_bin=python_bin)
     claude_md, agents_md = render_root_guidance(po_root)
+    opencode_json, opencode_readme = render_opencode_files()
 
     config_path.write_text(config_text, encoding="utf-8")
     start_script_path.write_text(start_script, encoding="utf-8")
@@ -487,6 +507,21 @@ def write_setup_files(
     if not agents_path.exists():
         agents_path.write_text(agents_md, encoding="utf-8")
         written_files.append(agents_path)
+
+    if should_initialize_opencode(default_runtime, executor_runtime, candidates):
+        opencode_config_path = po_root / "opencode.json"
+        if not opencode_config_path.exists():
+            opencode_config_path.write_text(opencode_json, encoding="utf-8")
+            written_files.append(opencode_config_path)
+
+        opencode_dir = po_root / ".opencode"
+        opencode_dir.mkdir(exist_ok=True)
+        opencode_skills_dir = opencode_dir / "skills"
+        opencode_skills_dir.mkdir(exist_ok=True)
+        opencode_readme_path = opencode_dir / "README.md"
+        if not opencode_readme_path.exists():
+            opencode_readme_path.write_text(opencode_readme, encoding="utf-8")
+            written_files.append(opencode_readme_path)
 
     workspace_lines = [
         f"- {candidate.workspace_id}: {candidate.relative_path} [{candidate.runtime}/{candidate.mode}]"

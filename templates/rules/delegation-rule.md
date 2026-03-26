@@ -1,10 +1,10 @@
 # Delegation Rule (CRITICAL)
 
-All work is executed through the `orchestrator/` package. PO creates execution plans via `query(cwd=project/)`, and the executor runs workspace tasks via `query(cwd=workspace/)`. Each directory's CLAUDE.md + .claude/* are automatically loaded.
+All work is executed through the `orchestrator/` package. PO creates execution plans via `query(cwd=project/)`, and the executor runs workspace tasks via `query(cwd=workspace/)`. Runtime guidance may come from `AGENTS.md`, `CLAUDE.md`, `.claude/*`, or `opencode.json` depending on the selected runtime.
 
 ## Discovery
 
-Discover available projects by running `ls`. Read each project's `CLAUDE.md` to understand it. No hardcoded project lists.
+Discover available projects by running `ls`. Read each project's `AGENTS.md`, `CLAUDE.md`, and `opencode.json` when present to understand it. No hardcoded project lists.
 
 ## Decision Tree
 

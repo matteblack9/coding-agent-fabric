@@ -14,7 +14,8 @@ This directory is the Project Orchestrator root. It coordinates Workspaces and W
 
 - `claude` reads `CLAUDE.md` and `.claude/`
 - `codex` reads `AGENTS.md`
-- `opencode` can reuse `AGENTS.md` and Claude-style project guidance
+- `opencode` reads `AGENTS.md`, can also use `opencode.json` and `.opencode/skills/`
+- `opencode` may fall back to `CLAUDE.md` and `.claude/` when those already exist
 
 ## Operating Rules
 

@@ -16,7 +16,7 @@ tasks run without time limits, just as they would locally.
 - **Never proceed without asking the user**
 - **Auto-detected values are presented as numbered choices first** — the user only needs to enter a number
 - One listener per workspace (multiple workspaces on the same host → use different ports)
-- The remote workspace must have a CLAUDE.md for the PO to understand it
+- The remote workspace should expose guidance the PO can inspect: `AGENTS.md` for Codex/OpenCode, `CLAUDE.md` or `.claude/` for Claude, and `opencode.json`/`.opencode/` when OpenCode-specific config is needed
 - The listener must run continuously (nohup by default, systemd/supervisord recommended)
 
 ---

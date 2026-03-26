@@ -28,5 +28,6 @@ Use this skill when the user wants to install or reconfigure the Project Orchest
 ## Notes
 
 - The TUI generates `orchestrator.yaml`, `start-orchestrator.sh`, `CLAUDE.md`, and `AGENTS.md` when missing.
+- If `opencode` is selected for any workspace or default runtime, setup also scaffolds `opencode.json` and `.opencode/skills/`.
 - `claude` remains the default runtime.
 - `codex` and `opencode` require working Node.js dependencies and local credentials/provider setup.

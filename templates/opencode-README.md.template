@@ -1,0 +1,8 @@
+# OpenCode Project Files
+
+Project-local OpenCode files live here.
+
+- Keep shared runtime-neutral instructions in `AGENTS.md`
+- Put OpenCode-specific skills in `.opencode/skills/<name>/SKILL.md`
+- Use `opencode.json` at the project root for OpenCode config
+- Keep `CLAUDE.md` and `.claude/` only for Claude-specific behavior or compatibility
