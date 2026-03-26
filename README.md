@@ -40,6 +40,7 @@ Just as **Microservice Architecture (MSA)** decomposed the monolith into indepen
 We call this pattern **Micro-Agent Architecture (MAA)**.
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E6F1FB","primaryTextColor":"#0F172A","primaryBorderColor":"#185FA5","secondaryColor":"#EDE9FE","secondaryTextColor":"#1F2937","secondaryBorderColor":"#7C3AED","tertiaryColor":"#ECFDF5","tertiaryTextColor":"#14532D","tertiaryBorderColor":"#16A34A","lineColor":"#475569","clusterBkg":"#F8FAFC","clusterBorder":"#94A3B8","noteBkgColor":"#FEF3C7","noteTextColor":"#78350F","noteBorderColor":"#D97706","activationBkgColor":"#DBEAFE","activationBorderColor":"#2563EB","sequenceNumberColor":"#0F172A"}}}%%
 graph LR
     subgraph MSA["Microservice Architecture · MSA"]
         MONO["Monolith<br/><small>single deploy</small>"]
@@ -54,9 +55,19 @@ graph LR
             AS["Auth service"] --> AS_DB[("DB")]
         end
     end
+
+    classDef mono fill:#EDE9FE,stroke:#7C3AED,color:#1F2937,stroke-width:1.5px
+    classDef service fill:#DBEAFE,stroke:#2563EB,color:#0F172A,stroke-width:1.5px
+    classDef store fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:1.5px
+    style MSA fill:#F8FAFC,stroke:#64748B,stroke-width:1.5px,color:#0F172A
+    style SB fill:#F1F5F9,stroke:#94A3B8,stroke-width:1.5px,color:#0F172A
+    class MONO mono
+    class US,OS,AS service
+    class US_DB,OS_DB,AS_DB store
 ```
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E6F1FB","primaryTextColor":"#0F172A","primaryBorderColor":"#185FA5","secondaryColor":"#EDE9FE","secondaryTextColor":"#1F2937","secondaryBorderColor":"#7C3AED","tertiaryColor":"#ECFDF5","tertiaryTextColor":"#14532D","tertiaryBorderColor":"#16A34A","lineColor":"#475569","clusterBkg":"#F8FAFC","clusterBorder":"#94A3B8","noteBkgColor":"#FEF3C7","noteTextColor":"#78350F","noteBorderColor":"#D97706","activationBkgColor":"#DBEAFE","activationBorderColor":"#2563EB","sequenceNumberColor":"#0F172A"}}}%%
 graph LR
     subgraph MAA["Micro-Agent Architecture · MAA"]
         SINGLE["Single runtime session<br/><small>shared context</small>"]
@@ -71,6 +82,15 @@ graph LR
             WC["WO: staging"] --> WC_CTX["runtime config + remote listener"]
         end
     end
+
+    classDef session fill:#EDE9FE,stroke:#7C3AED,color:#1F2937,stroke-width:1.5px
+    classDef worker fill:#DCFCE7,stroke:#16A34A,color:#14532D,stroke-width:1.5px
+    classDef context fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:1.5px
+    style MAA fill:#F8FAFC,stroke:#64748B,stroke-width:1.5px,color:#0F172A
+    style IB fill:#F1F5F9,stroke:#94A3B8,stroke-width:1.5px,color:#0F172A
+    class SINGLE session
+    class WA,WB,WC worker
+    class WA_CTX,WB_CTX,WC_CTX context
 ```
 
 > **monolith ≡ single session · microservice ≡ workspace worker · DB ≡ workspace guidance + runtime boundary**
@@ -88,6 +108,7 @@ graph LR
 | **Failure isolation** | One service fails, others continue | One WO can fail without collapsing the whole plan |
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E6F1FB","primaryTextColor":"#0F172A","primaryBorderColor":"#185FA5","secondaryColor":"#EDE9FE","secondaryTextColor":"#1F2937","secondaryBorderColor":"#7C3AED","tertiaryColor":"#ECFDF5","tertiaryTextColor":"#14532D","tertiaryBorderColor":"#16A34A","lineColor":"#475569","clusterBkg":"#F8FAFC","clusterBorder":"#94A3B8","noteBkgColor":"#FEF3C7","noteTextColor":"#78350F","noteBorderColor":"#D97706","activationBkgColor":"#DBEAFE","activationBorderColor":"#2563EB","sequenceNumberColor":"#0F172A"}}}%%
 flowchart TB
     INPUT["Slack / Telegram"]
     ADAPTER["Channel Adapter<br/><small>receive message, confirm gate</small>"]
@@ -112,6 +133,20 @@ flowchart TB
     PO --> EXEC
     EXEC --> LOG["Task Log<br/><small>.tasks/ with retention</small>"]
     LOG --> OUTPUT["Channel response"]
+
+    classDef channel fill:#E0F2FE,stroke:#0891B2,color:#0F172A,stroke-width:1.5px
+    classDef control fill:#EDE9FE,stroke:#7C3AED,color:#1F2937,stroke-width:1.5px
+    classDef worker fill:#DCFCE7,stroke:#16A34A,color:#14532D,stroke-width:1.5px
+    classDef downstream fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:1.5px
+    classDef log fill:#FCE7F3,stroke:#DB2777,color:#831843,stroke-width:1.5px
+    style EXEC fill:#F8FAFC,stroke:#64748B,stroke-width:1.5px,color:#0F172A
+    style P1 fill:#ECFDF5,stroke:#16A34A,stroke-width:1.5px,color:#14532D
+    style P2 fill:#EFF6FF,stroke:#2563EB,stroke-width:1.5px,color:#1E3A8A
+    class INPUT,OUTPUT,ADAPTER channel
+    class ROUTER,PO control
+    class W1,W2 worker
+    class W3 downstream
+    class LOG log
 ```
 
 ---
@@ -141,6 +176,7 @@ Claude Code has a Channels feature that forwards chat messages into a running CL
 Traditional setups tie the assistant to one person's laptop or one long-running terminal session. Micro Agent Manager flips that: the orchestrator lives in the shared channel, not in one person's shell.
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E6F1FB","primaryTextColor":"#0F172A","primaryBorderColor":"#185FA5","secondaryColor":"#EDE9FE","secondaryTextColor":"#1F2937","secondaryBorderColor":"#7C3AED","tertiaryColor":"#ECFDF5","tertiaryTextColor":"#14532D","tertiaryBorderColor":"#16A34A","lineColor":"#475569","clusterBkg":"#F8FAFC","clusterBorder":"#94A3B8","noteBkgColor":"#FEF3C7","noteTextColor":"#78350F","noteBorderColor":"#D97706","activationBkgColor":"#DBEAFE","activationBorderColor":"#2563EB","sequenceNumberColor":"#0F172A"}}}%%
 flowchart TB
     subgraph SLACK["Shared channel"]
         APP["Orchestrator app"]
@@ -161,6 +197,16 @@ flowchart TB
     W1 --> T1
     W2 --> T1
     W3 --> T2
+
+    classDef app fill:#EDE9FE,stroke:#7C3AED,color:#1F2937,stroke-width:1.5px
+    classDef human fill:#DBEAFE,stroke:#2563EB,color:#0F172A,stroke-width:1.5px
+    classDef away fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:1.5px
+    classDef worker fill:#DCFCE7,stroke:#16A34A,color:#14532D,stroke-width:1.5px
+    style SLACK fill:#ECFDF5,stroke:#16A34A,stroke-width:1.5px,color:#14532D
+    class APP,PO app
+    class T1,T2 human
+    class Y away
+    class W1,W2,W3 worker
 ```
 
 **No handoff required.** The orchestrator already knows workspace structure through `orchestrator.yaml`, shared instructions in `AGENTS.md`, Claude-specific context in `CLAUDE.md` or `.claude/`, OpenCode-specific config in `opencode.json` or `.opencode/`, and workspace-specific runtime settings. A teammate does not need your local terminal state or your memory of "how this repo works."
@@ -188,15 +234,22 @@ Two properties make that useful:
 ### Delegation Flow
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E6F1FB","primaryTextColor":"#0F172A","primaryBorderColor":"#185FA5","secondaryColor":"#EDE9FE","secondaryTextColor":"#1F2937","secondaryBorderColor":"#7C3AED","tertiaryColor":"#ECFDF5","tertiaryTextColor":"#14532D","tertiaryBorderColor":"#16A34A","lineColor":"#475569","clusterBkg":"#F8FAFC","clusterBorder":"#94A3B8","noteBkgColor":"#FEF3C7","noteTextColor":"#78350F","noteBorderColor":"#D97706","activationBkgColor":"#DBEAFE","activationBorderColor":"#2563EB","sequenceNumberColor":"#0F172A"}}}%%
 sequenceDiagram
     actor User
-    participant CH as Channel Adapter
-    participant CG as ConfirmGate
-    participant RT as Router
-    participant PO as PO
-    participant EX as Executor
-    participant WO as WOs
-    participant LOG as Task Log
+    box rgba(224, 242, 254, 0.65) Channel
+        participant CH as Channel Adapter
+        participant CG as ConfirmGate
+    end
+    box rgba(237, 233, 254, 0.65) Planning
+        participant RT as Router
+        participant PO as PO
+    end
+    box rgba(220, 252, 231, 0.65) Execution
+        participant EX as Executor
+        participant WO as WOs
+        participant LOG as Task Log
+    end
 
     User->>CH: message
     CH->>CG: store pending request
@@ -206,12 +259,24 @@ sequenceDiagram
     RT->>PO: target workspaces
     PO->>PO: plan phases
     PO->>EX: phased execution plan
-    EX->>WO: phase 1 in parallel
-    WO-->>EX: results
-    EX->>WO: phase 2 with upstream context
-    WO-->>EX: results
-    EX->>LOG: write .tasks log
-    LOG-->>CH: formatted output
+
+    rect rgba(220, 252, 231, 0.35)
+        Note over EX,WO: Phase 1 · parallel
+        EX->>WO: phase 1 in parallel
+        WO-->>EX: results
+    end
+
+    rect rgba(219, 234, 254, 0.35)
+        Note over EX,WO: Phase 2 · downstream
+        EX->>WO: phase 2 with upstream context
+        WO-->>EX: results
+    end
+
+    rect rgba(252, 231, 243, 0.35)
+        EX->>LOG: write .tasks log
+        LOG-->>CH: formatted output
+    end
+
     CH-->>User: result
 ```
 
@@ -242,6 +307,7 @@ Below are three concrete examples of how one request becomes phased WO execution
 > **Slack**: _"Add auth to the backend, wire the frontend login flow, then deploy staging"_
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E6F1FB","primaryTextColor":"#0F172A","primaryBorderColor":"#185FA5","secondaryColor":"#EDE9FE","secondaryTextColor":"#1F2937","secondaryBorderColor":"#7C3AED","tertiaryColor":"#ECFDF5","tertiaryTextColor":"#14532D","tertiaryBorderColor":"#16A34A","lineColor":"#475569","clusterBkg":"#F8FAFC","clusterBorder":"#94A3B8","noteBkgColor":"#FEF3C7","noteTextColor":"#78350F","noteBorderColor":"#D97706","activationBkgColor":"#DBEAFE","activationBorderColor":"#2563EB","sequenceNumberColor":"#0F172A"}}}%%
 flowchart LR
     subgraph P1["Phase 1 · parallel"]
         A1["backend/api"]
@@ -261,6 +327,16 @@ flowchart LR
     A2 -->|"upstream context"| B1
     B1 -->|"deploy input"| C1
     C1 -->|"release info"| C2
+
+    classDef phase1 fill:#DCFCE7,stroke:#16A34A,color:#14532D,stroke-width:1.5px
+    classDef phase2 fill:#DBEAFE,stroke:#2563EB,color:#0F172A,stroke-width:1.5px
+    classDef phase3 fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:1.5px
+    style P1 fill:#ECFDF5,stroke:#16A34A,stroke-width:1.5px,color:#14532D
+    style P2 fill:#EFF6FF,stroke:#2563EB,stroke-width:1.5px,color:#1E3A8A
+    style P3 fill:#FFF7ED,stroke:#EA580C,stroke-width:1.5px,color:#9A3412
+    class A1,A2 phase1
+    class B1 phase2
+    class C1,C2 phase3
 ```
 
 #### Scenario 2 — Shared library upgrade across runtimes
@@ -268,6 +344,7 @@ flowchart LR
 > **Telegram**: _"Upgrade the shared types package and update all dependent workspaces"_
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E6F1FB","primaryTextColor":"#0F172A","primaryBorderColor":"#185FA5","secondaryColor":"#EDE9FE","secondaryTextColor":"#1F2937","secondaryBorderColor":"#7C3AED","tertiaryColor":"#ECFDF5","tertiaryTextColor":"#14532D","tertiaryBorderColor":"#16A34A","lineColor":"#475569","clusterBkg":"#F8FAFC","clusterBorder":"#94A3B8","noteBkgColor":"#FEF3C7","noteTextColor":"#78350F","noteBorderColor":"#D97706","activationBkgColor":"#DBEAFE","activationBorderColor":"#2563EB","sequenceNumberColor":"#0F172A"}}}%%
 flowchart LR
     subgraph P1["Phase 1"]
         A["shared/types"]
@@ -291,6 +368,16 @@ flowchart LR
     B1 --> C1
     B2 --> C2
     B3 --> C3
+
+    classDef phase1 fill:#EDE9FE,stroke:#7C3AED,color:#1F2937,stroke-width:1.5px
+    classDef phase2 fill:#DBEAFE,stroke:#2563EB,color:#0F172A,stroke-width:1.5px
+    classDef phase3 fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:1.5px
+    style P1 fill:#F5F3FF,stroke:#7C3AED,stroke-width:1.5px,color:#4C1D95
+    style P2 fill:#EFF6FF,stroke:#2563EB,stroke-width:1.5px,color:#1E3A8A
+    style P3 fill:#FFF7ED,stroke:#EA580C,stroke-width:1.5px,color:#9A3412
+    class A phase1
+    class B1,B2,B3 phase2
+    class C1,C2,C3 phase3
 ```
 
 #### Scenario 3 — Local to remote handoff
@@ -298,6 +385,7 @@ flowchart LR
 > **Slack**: _"Change the deployment manifest and roll it out to the remote staging workspace"_
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E6F1FB","primaryTextColor":"#0F172A","primaryBorderColor":"#185FA5","secondaryColor":"#EDE9FE","secondaryTextColor":"#1F2937","secondaryBorderColor":"#7C3AED","tertiaryColor":"#ECFDF5","tertiaryTextColor":"#14532D","tertiaryBorderColor":"#16A34A","lineColor":"#475569","clusterBkg":"#F8FAFC","clusterBorder":"#94A3B8","noteBkgColor":"#FEF3C7","noteTextColor":"#78350F","noteBorderColor":"#D97706","activationBkgColor":"#DBEAFE","activationBorderColor":"#2563EB","sequenceNumberColor":"#0F172A"}}}%%
 flowchart LR
     subgraph P1["Phase 1 · local"]
         A["infra/manifests"]
@@ -312,6 +400,16 @@ flowchart LR
     end
 
     A -->|"remote listener payload"| B --> C
+
+    classDef local fill:#DCFCE7,stroke:#16A34A,color:#14532D,stroke-width:1.5px
+    classDef remote fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:1.5px
+    classDef verify fill:#DBEAFE,stroke:#2563EB,color:#0F172A,stroke-width:1.5px
+    style P1 fill:#ECFDF5,stroke:#16A34A,stroke-width:1.5px,color:#14532D
+    style P2 fill:#FFF7ED,stroke:#EA580C,stroke-width:1.5px,color:#9A3412
+    style P3 fill:#EFF6FF,stroke:#2563EB,stroke-width:1.5px,color:#1E3A8A
+    class A local
+    class B remote
+    class C verify
 ```
 
 ---
@@ -350,6 +448,7 @@ If you are seeing terms like `PO` and `WO` for the first time, read this section
 Operationally, the tree looks like this:
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E6F1FB","primaryTextColor":"#0F172A","primaryBorderColor":"#185FA5","secondaryColor":"#EDE9FE","secondaryTextColor":"#1F2937","secondaryBorderColor":"#7C3AED","tertiaryColor":"#ECFDF5","tertiaryTextColor":"#14532D","tertiaryBorderColor":"#16A34A","lineColor":"#475569","clusterBkg":"#F8FAFC","clusterBorder":"#94A3B8","noteBkgColor":"#FEF3C7","noteTextColor":"#78350F","noteBorderColor":"#D97706","activationBkgColor":"#DBEAFE","activationBorderColor":"#2563EB","sequenceNumberColor":"#0F172A"}}}%%
 flowchart TD
     START["Run start-orchestrator.sh"] --> MAIN["orchestrator.main"]
     MAIN --> CHANNEL["Slack / Telegram adapter"]
@@ -370,6 +469,17 @@ flowchart TD
     WO3 --> LOG
     LOG --> RESP["Formatted channel response"]
     RESP --> CHANNEL
+
+    classDef entry fill:#DCFCE7,stroke:#16A34A,color:#14532D,stroke-width:1.5px
+    classDef control fill:#EDE9FE,stroke:#7C3AED,color:#1F2937,stroke-width:1.5px
+    classDef phase fill:#DBEAFE,stroke:#2563EB,color:#0F172A,stroke-width:1.5px
+    classDef worker fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:1.5px
+    classDef log fill:#FCE7F3,stroke:#DB2777,color:#831843,stroke-width:1.5px
+    class START entry
+    class MAIN,CHANNEL,GATE,ROUTER,PO,EXEC control
+    class PH1,PH2 phase
+    class WO1,WO2,WO3 worker
+    class LOG,RESP log
 ```
 
 After setup has written `orchestrator.yaml` and `start-orchestrator.sh`, run from the `PO` root:
@@ -456,27 +566,32 @@ po-root/
 ### Multi-Runtime Structure
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E6F1FB","primaryTextColor":"#0F172A","primaryBorderColor":"#185FA5","secondaryColor":"#EDE9FE","secondaryTextColor":"#1F2937","secondaryBorderColor":"#7C3AED","tertiaryColor":"#ECFDF5","tertiaryTextColor":"#14532D","tertiaryBorderColor":"#16A34A","lineColor":"#475569","clusterBkg":"#F8FAFC","clusterBorder":"#94A3B8","noteBkgColor":"#FEF3C7","noteTextColor":"#78350F","noteBorderColor":"#D97706","activationBkgColor":"#DBEAFE","activationBorderColor":"#2563EB","sequenceNumberColor":"#0F172A"}}}%%
 flowchart TD
-    subgraph CHANNELS["Channels"]
-        U["Slack / Telegram"]
-        CA["Channel adapters"]
-    end
+    subgraph HOST["Orchestrator host · same local system"]
+        direction TB
 
-    subgraph CONTROL["Python control plane"]
-        G["ConfirmGate"]
-        R["Router"]
-        P["PO"]
-        D["Direct handler"]
-        E["Executor"]
-        L["Task log (.tasks/)"]
-    end
+        subgraph CHANNELS["Channels"]
+            U["Slack / Telegram"]
+            CA["Channel adapters"]
+        end
 
-    subgraph LOCAL["Local execution"]
-        RL["Runtime layer"]
-        CSDK["Claude SDK"]
-        BR["Node bridge"]
-        CX["Codex SDK"]
-        OC["OpenCode SDK"]
+        subgraph CONTROL["Python control plane"]
+            G["ConfirmGate"]
+            R["Router"]
+            P["PO"]
+            D["Direct handler"]
+            E["Executor"]
+            L["Task log (.tasks/)"]
+        end
+
+        subgraph LOCAL["Local execution"]
+            RL["Runtime layer"]
+            CSDK["Claude SDK"]
+            BR["Node bridge"]
+            CX["Codex SDK"]
+            OC["OpenCode SDK"]
+        end
     end
 
     subgraph REMOTE["Remote execution"]
@@ -504,6 +619,22 @@ flowchart TD
     OC --> L
     RR --> L
     L --> CA
+
+    classDef channel fill:#E0F2FE,stroke:#0891B2,color:#0F172A,stroke-width:1.5px
+    classDef control fill:#EDE9FE,stroke:#7C3AED,color:#1F2937,stroke-width:1.5px
+    classDef local fill:#DCFCE7,stroke:#16A34A,color:#14532D,stroke-width:1.5px
+    classDef bridge fill:#DBEAFE,stroke:#2563EB,color:#0F172A,stroke-width:1.5px
+    classDef remote fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:1.5px
+    style HOST fill:#F8FAFC,stroke:#334155,stroke-width:2px,color:#0F172A
+    style CHANNELS fill:#ECFEFF,stroke:#0891B2,stroke-width:1.5px,color:#164E63
+    style CONTROL fill:#F5F3FF,stroke:#7C3AED,stroke-width:1.5px,color:#4C1D95
+    style LOCAL fill:#ECFDF5,stroke:#16A34A,stroke-width:1.5px,color:#14532D
+    style REMOTE fill:#FFF7ED,stroke:#EA580C,stroke-width:1.5px,color:#9A3412
+    class U,CA channel
+    class G,R,P,D,E,L control
+    class RL,CSDK,CX,OC local
+    class BR bridge
+    class REM,RR remote
 ```
 
 ### Agent Model Strategy
@@ -555,6 +686,7 @@ Recommended pattern:
 ### Session State Machine
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E6F1FB","primaryTextColor":"#0F172A","primaryBorderColor":"#185FA5","secondaryColor":"#EDE9FE","secondaryTextColor":"#1F2937","secondaryBorderColor":"#7C3AED","tertiaryColor":"#ECFDF5","tertiaryTextColor":"#14532D","tertiaryBorderColor":"#16A34A","lineColor":"#475569","clusterBkg":"#F8FAFC","clusterBorder":"#94A3B8","noteBkgColor":"#FEF3C7","noteTextColor":"#78350F","noteBorderColor":"#D97706","activationBkgColor":"#DBEAFE","activationBorderColor":"#2563EB","sequenceNumberColor":"#0F172A"}}}%%
 stateDiagram-v2
     [*] --> IDLE
 
@@ -573,6 +705,13 @@ stateDiagram-v2
 
     AWAITING_FOLLOWUP --> IDLE : done or end
     AWAITING_FOLLOWUP --> IDLE : new request
+
+    classDef idle fill:#DBEAFE,stroke:#2563EB,color:#0F172A,stroke-width:1.5px
+    classDef pending fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:1.5px
+    classDef active fill:#DCFCE7,stroke:#16A34A,color:#14532D,stroke-width:1.5px
+    class IDLE,AWAITING_FOLLOWUP idle
+    class PENDING_CONFIRM,PENDING_EXEC_CONFIRM pending
+    class EXECUTING active
 ```
 
 ### Execution Flow
@@ -873,6 +1012,7 @@ kill $(pgrep -f "orchestrator.main")
 A single PO manages one project tree. If your organization has multiple systems, each system can run its own orchestrator and a higher-level orchestrator can route across them.
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E6F1FB","primaryTextColor":"#0F172A","primaryBorderColor":"#185FA5","secondaryColor":"#EDE9FE","secondaryTextColor":"#1F2937","secondaryBorderColor":"#7C3AED","tertiaryColor":"#ECFDF5","tertiaryTextColor":"#14532D","tertiaryBorderColor":"#16A34A","lineColor":"#475569","clusterBkg":"#F8FAFC","clusterBorder":"#94A3B8","noteBkgColor":"#FEF3C7","noteTextColor":"#78350F","noteBorderColor":"#D97706","activationBkgColor":"#DBEAFE","activationBorderColor":"#2563EB","sequenceNumberColor":"#0F172A"}}}%%
 flowchart TB
     USER["Single channel connection"]
     TOP["Global Orchestrator"]
@@ -888,6 +1028,15 @@ flowchart TB
     KOR --> PROD
     KOR --> INFRA
     USA --> ML
+
+    classDef user fill:#E0F2FE,stroke:#0891B2,color:#0F172A,stroke-width:1.5px
+    classDef global fill:#EDE9FE,stroke:#7C3AED,color:#1F2937,stroke-width:1.5px
+    classDef division fill:#DBEAFE,stroke:#2563EB,color:#0F172A,stroke-width:1.5px
+    classDef po fill:#DCFCE7,stroke:#16A34A,color:#14532D,stroke-width:1.5px
+    class USER user
+    class TOP global
+    class KOR,USA division
+    class PROD,INFRA,ML po
 ```
 
 The same rule still applies: each layer only needs to know its direct children.
