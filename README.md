@@ -9,10 +9,10 @@
 [![Codex SDK](https://img.shields.io/badge/Runtime-Codex-111111.svg)](https://developers.openai.com/codex/sdk)
 [![OpenCode SDK](https://img.shields.io/badge/Runtime-OpenCode-0F7B6C.svg)](https://opencode.ai/docs/sdk/)
 
-**One channel connection.** <br>
+**One channel connection.** 
 **One Project Orchestrator.** <br>
-**Every workspace runs through its own isolated Workspace Orchestrator.** <br>
-
+**Every workspace runs through its own isolated Workspace Orchestrator.** <br> 
+**Write Code and Manage your project wherever you are**
 ---
 
 Agent Fabric is an orchestration layer for project trees.  <br>
