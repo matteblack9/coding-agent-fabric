@@ -12,6 +12,8 @@
 
 Agent Fabric is an orchestration layer for project trees. A message arrives from Slack or Telegram, the **Project Orchestrator (PO)** routes it, builds a dependency-aware execution plan, and delegates each workspace task to a **Workspace Orchestrator (WO)**.
 
+It began as an expansion of [claude-code-tunnels](https://github.com/matteblack9/claude-code-tunnels) and evolved into a runtime-neutral control plane for multi-workspace agent execution.
+
 This version keeps the Python control plane, but expands execution beyond a single-runtime model:
 
 - `claude` runs through the existing Python `claude-agent-sdk`
