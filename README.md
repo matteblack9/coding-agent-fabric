@@ -13,6 +13,7 @@
 **One Project Orchestrator.** <br>
 **Every workspace runs through its own isolated Workspace Orchestrator.** <br> 
 **Write Code and Manage your project wherever you are**
+
 ---
 
 Agent Fabric is an orchestration layer for project trees.  <br>
