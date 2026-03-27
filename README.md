@@ -13,6 +13,8 @@
 **One Project Orchestrator.** <br>
 **Every workspace runs through its own isolated Workspace Orchestrator.** <br>
 
+---
+
 Agent Fabric is an orchestration layer for project trees.  <br>
 A message arrives from Slack or Telegram, <br>
 the **Project Orchestrator (PO)** routes it, builds a dependency-aware execution plan, <br>
