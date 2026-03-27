@@ -9,9 +9,9 @@
 [![Codex SDK](https://img.shields.io/badge/Runtime-Codex-111111.svg)](https://developers.openai.com/codex/sdk)
 [![OpenCode SDK](https://img.shields.io/badge/Runtime-OpenCode-0F7B6C.svg)](https://opencode.ai/docs/sdk/)
 
-**One channel connection.**
-**One Project Orchestrator.**
-**Every workspace runs through its own isolated Workspace Orchestrator.**
+**One channel connection.** <br>
+**One Project Orchestrator.** <br>
+**Every workspace runs through its own isolated Workspace Orchestrator.** <br>
 
 Agent Fabric is an orchestration layer for project trees.  <br>
 A message arrives from Slack or Telegram, <br>
@@ -37,16 +37,17 @@ Guidance is runtime-aware:
 
 Short glossary:
 
-- **PO**: the control plane that routes requests, builds phases, and coordinates execution
+- **PO(Project Orchestrator)**: the control plane that routes requests, builds phases, and coordinates execution
+- **WO(Workspace Orchestrator)**: the runtime worker assigned to one workspace
 - **Workspace**: a real directory that contains code or documents
-- **WO**: the runtime worker assigned to one workspace
 - **Remote Workspace**: a workspace executed through the remote listener on another host or pod
 
 ---
 
 ## Micro-Agent Architecture (MAA)
 
-Just as **Microservice Architecture (MSA)** decomposed the monolith into independently deployable services, Agent Fabric decomposes one large assistant session into independently executing workspace workers. Each WO owns one workspace, one runtime, and one bounded context.
+Just as **Microservice Architecture (MSA)** decomposed the monolith into independently deployable services, <br>
+Agent Fabric decomposes one large assistant session into independently executing workspace workers. Each WO owns one workspace, one runtime, and one bounded context.
 
 We call this pattern **Micro-Agent Architecture (MAA)**.
 
