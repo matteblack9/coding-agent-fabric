@@ -14,6 +14,8 @@ Agent Fabric is an orchestration layer for project trees. A message arrives from
 
 It began as an expansion of [claude-code-tunnels](https://github.com/matteblack9/claude-code-tunnels) and evolved into a runtime-neutral control plane for multi-workspace agent execution.
 
+If you want the agent-oriented mainline version, see [agent-fabric](https://github.com/matteblack9/agent-fabric).
+
 This version keeps the Python control plane, but expands execution beyond a single-runtime model:
 
 - `claude` runs through the existing Python `claude-agent-sdk`
