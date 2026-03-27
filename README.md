@@ -9,13 +9,16 @@
 [![Codex SDK](https://img.shields.io/badge/Runtime-Codex-111111.svg)](https://developers.openai.com/codex/sdk)
 [![OpenCode SDK](https://img.shields.io/badge/Runtime-OpenCode-0F7B6C.svg)](https://opencode.ai/docs/sdk/)
 
-**One channel connection. One Project Orchestrator. Every workspace runs through its own isolated Workspace Orchestrator.**
+**One channel connection.**
+**One Project Orchestrator.**
+**Every workspace runs through its own isolated Workspace Orchestrator.**
 
-Agent Fabric is an orchestration layer for project trees. A message arrives from Slack or Telegram, the **Project Orchestrator (PO)** routes it, builds a dependency-aware execution plan, and delegates each workspace task to a **Workspace Orchestrator (WO)**.
+Agent Fabric is an orchestration layer for project trees.  <br>
+A message arrives from Slack or Telegram, <br>
+the **Project Orchestrator (PO)** routes it, builds a dependency-aware execution plan, <br>
+and delegates each workspace task to a **Workspace Orchestrator (WO)**. <br>
 
 It began as an expansion of [claude-code-tunnels](https://github.com/matteblack9/claude-code-tunnels) and evolved into a runtime-neutral control plane for multi-workspace agent execution.
-
-If you want the agent-oriented mainline version, see [agent-fabric](https://github.com/matteblack9/agent-fabric).
 
 This version keeps the Python control plane, but expands execution beyond a single-runtime model:
 
