@@ -13,3 +13,4 @@ build/
 .claude-listener.py
 /tmp/
 node_modules/
+.setup-bootstrap.log

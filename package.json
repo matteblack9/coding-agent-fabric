@@ -1,5 +1,5 @@
 {
-  "name": "claude-code-tunnels-bridge",
+  "name": "agent-fabric-bridge",
   "private": true,
   "type": "module",
   "scripts": {

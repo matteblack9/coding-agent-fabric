@@ -1,6 +1,7 @@
 claude-agent-sdk
 aiohttp>=3.9
 pyyaml>=6.0
+InquirerPy>=0.3.4
 
 # Slack (install if using Slack channel)
 # slack-bolt>=1.18

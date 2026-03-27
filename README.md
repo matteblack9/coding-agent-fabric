@@ -1,4 +1,4 @@
-# Micro Agent Manager (Micro-Agent Architecture)
+# Agent Fabric
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
@@ -10,7 +10,7 @@
 
 **One channel connection. One Project Orchestrator. Every workspace runs through its own isolated Workspace Orchestrator.**
 
-Micro Agent Manager is an orchestration layer for project trees. A message arrives from Slack or Telegram, the **Project Orchestrator (PO)** routes it, builds a dependency-aware execution plan, and delegates each workspace task to a **Workspace Orchestrator (WO)**.
+Agent Fabric is an orchestration layer for project trees. A message arrives from Slack or Telegram, the **Project Orchestrator (PO)** routes it, builds a dependency-aware execution plan, and delegates each workspace task to a **Workspace Orchestrator (WO)**.
 
 This version keeps the Python control plane, but expands execution beyond a single-runtime model:
 
@@ -38,7 +38,7 @@ Short glossary:
 
 ## Micro-Agent Architecture (MAA)
 
-Just as **Microservice Architecture (MSA)** decomposed the monolith into independently deployable services, Micro Agent Manager decomposes one large assistant session into independently executing workspace workers. Each WO owns one workspace, one runtime, and one bounded context.
+Just as **Microservice Architecture (MSA)** decomposed the monolith into independently deployable services, Agent Fabric decomposes one large assistant session into independently executing workspace workers. Each WO owns one workspace, one runtime, and one bounded context.
 
 We call this pattern **Micro-Agent Architecture (MAA)**.
 
@@ -156,9 +156,9 @@ flowchart TB
 
 ## Why This Over Claude Code's Built-in Channels?
 
-Claude Code has a Channels feature that forwards chat messages into a running CLI session. Micro Agent Manager solves a different problem.
+Claude Code has a Channels feature that forwards chat messages into a running CLI session. Agent Fabric solves a different problem.
 
-| Feature | Claude Code Channels | Micro Agent Manager |
+| Feature | Claude Code Channels | Agent Fabric |
 |---------|---------------------|---------------------|
 | **Architecture** | Single CLI session, single cwd | Always-on PO with phased workspace orchestration |
 | **Session model** | Bound to a running session | Background daemon with per-workspace execution |
@@ -170,13 +170,13 @@ Claude Code has a Channels feature that forwards chat messages into a running CL
 | **Confirm gate** | None | Built-in confirm/cancel flow |
 | **Setup** | Connect a channel to one session | TUI discovers PO root, workspaces, and runtimes |
 
-**In short**: Channels is a message bridge into one session. Micro Agent Manager is an orchestration layer that can coordinate multiple workspaces and multiple runtimes from one shared channel.
+**In short**: Channels is a message bridge into one session. Agent Fabric is an orchestration layer that can coordinate multiple workspaces and multiple runtimes from one shared channel.
 
 ---
 
 ## Team Collaboration — Shared Channel, Zero Handoff
 
-Traditional setups tie the assistant to one person's laptop or one long-running terminal session. Micro Agent Manager flips that: the orchestrator lives in the shared channel, not in one person's shell.
+Traditional setups tie the assistant to one person's laptop or one long-running terminal session. Agent Fabric flips that: the orchestrator lives in the shared channel, not in one person's shell.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E6F1FB","primaryTextColor":"#0F172A","primaryBorderColor":"#185FA5","secondaryColor":"#EDE9FE","secondaryTextColor":"#1F2937","secondaryBorderColor":"#7C3AED","tertiaryColor":"#ECFDF5","tertiaryTextColor":"#14532D","tertiaryBorderColor":"#16A34A","lineColor":"#475569","clusterBkg":"#F8FAFC","clusterBorder":"#94A3B8","noteBkgColor":"#FEF3C7","noteTextColor":"#78350F","noteBorderColor":"#D97706","activationBkgColor":"#DBEAFE","activationBorderColor":"#2563EB","sequenceNumberColor":"#0F172A"}}}%%
@@ -420,23 +420,26 @@ flowchart LR
 ## Quick Start
 
 ```bash
-git clone https://github.com/matteblack9/claude-code-tunnels.git
-cd claude-code-tunnels
+git clone https://github.com/matteblack9/agent-fabric.git
+cd agent-fabric
 
-./install.sh
-.venv/bin/python -m orchestrator.setup_tui
+./setup.sh
 ./start-orchestrator.sh --fg
 ```
 
-The repository name is still `claude-code-tunnels`; the README title is runtime-neutral because this branch supports multiple coding agents.
+The repository is published as `agent-fabric`.
 
-The setup TUI:
+The setup wizard:
 
 1. checks whether the current folder already looks like a `PO` root
 2. suggests the `PO` root, `ARCHIVE` path, and workspace candidates
-3. lets you assign one `WO` per selected workspace
-4. writes `orchestrator.yaml`, `start-orchestrator.sh`, and root runtime guidance files (`AGENTS.md`, `CLAUDE.md`, plus `opencode.json` / `.opencode/` when OpenCode is selected) when needed; Cursor reads `.cursor/rules` if your repo already uses it
-5. shows the exact commands to run next
+3. collects Slack or Telegram credentials with masked input when those channels are enabled, then writes them under `ARCHIVE/` for the channel runtimes to use
+4. lets you assign one `WO` per selected workspace
+5. writes `orchestrator.yaml` and `start-orchestrator.sh`, creates `AGENTS.md` / `CLAUDE.md` when missing, and appends or refreshes a managed Project Orchestrator integration block when those markdown files already exist; Cursor reads `.cursor/rules` if your repo already uses it
+6. shows the exact commands to run next
+7. opens the selected default runtime for a remote Workspace Orchestrator follow-up, asking whether any remote Workspace Orchestrators should be connected and where their credentials should be stored under `ARCHIVE/`
+
+`setup.sh` is the primary entrypoint.
 
 ---
 
@@ -510,7 +513,7 @@ kill $(pgrep -f "orchestrator.main")
 
 | Command | Description |
 |---------|-------------|
-| `.venv/bin/python -m orchestrator.setup_tui` | Full-screen setup wizard for PO/workspace/WO configuration |
+| `.venv/bin/python -m orchestrator.setup_tui` | Interactive setup wizard for PO/workspace/WO configuration |
 | `/setup-orchestrator` | Plugin skill shortcut that launches the setup workflow |
 | `/connect-slack` | Add Slack credentials to an existing orchestrator |
 | `/connect-telegram` | Add Telegram credentials to an existing orchestrator |
@@ -536,7 +539,7 @@ po-root/
 │   ├── task_log.py              # .tasks/ writer
 │   ├── sanitize.py              # prompt safety checks
 │   ├── http_api.py              # optional HTTP surface
-│   ├── setup_tui.py             # Textual setup app
+│   ├── setup_tui.py             # Prompt-driven setup wizard
 │   ├── setup_support.py         # setup discovery and rendering helpers
 │   ├── channel/
 │   │   ├── base.py              # shared confirm/cancel/session flow
@@ -978,7 +981,7 @@ Control WO behavior through guidance files:
 - `opencode.json` and `.opencode/skills/` should hold OpenCode-only config and project-local skills when you need them
 - `.claude/` should be kept only for Claude memory, rules, and skills you still actively depend on
 
-The setup flow creates root-level `AGENTS.md` and `CLAUDE.md` when missing, and also scaffolds `opencode.json` plus `.opencode/` when OpenCode is selected. Cursor uses `.cursor/rules` when your repo already defines project rules. In practice, treat `AGENTS.md` as the shared contract across runtimes, then layer Claude-only behavior in `CLAUDE.md` or `.claude/`, Cursor-only behavior in `.cursor/rules` or legacy `.cursorrules`, and OpenCode-only behavior in `opencode.json` or `.opencode/`.
+The setup flow creates root-level `AGENTS.md` and `CLAUDE.md` when missing, and when those files already exist it appends or refreshes a managed Project Orchestrator integration block instead of overwriting the rest of your guidance. It also scaffolds `opencode.json` plus `.opencode/` when OpenCode is selected. Cursor uses `.cursor/rules` when your repo already defines project rules. In practice, treat `AGENTS.md` as the shared contract across runtimes, then layer Claude-only behavior in `CLAUDE.md` or `.claude/`, Cursor-only behavior in `.cursor/rules` or legacy `.cursorrules`, and OpenCode-only behavior in `opencode.json` or `.opencode/`.
 
 ---
 
@@ -990,7 +993,7 @@ The setup flow creates root-level `AGENTS.md` and `CLAUDE.md` when missing, and 
 | `aiohttp` | Always | HTTP server/client and remote listener |
 | `pyyaml` | Always | Config loading |
 | `requests` | If remote deployment helpers are used | SSH and kubectl deployment flows |
-| `textual` | Always | Setup TUI |
+| `InquirerPy` | Always | Setup wizard prompts |
 | `cursor-agent` | If Cursor | Cursor CLI runtime |
 | `@openai/codex-sdk` | Always after `npm install` | Codex runtime bridge |
 | `@opencode-ai/sdk` | Always after `npm install` | OpenCode runtime bridge |

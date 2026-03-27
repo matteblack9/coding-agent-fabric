@@ -34,9 +34,9 @@ description: "Install or reconfigure the local Project Orchestrator root, then v
 
 ### 1. Preflight
 
-1. Verify that this repository contains `install.sh`, `orchestrator/setup_tui.py`, and `templates/`
+1. Verify that this repository contains `setup.sh`, `orchestrator/setup_tui.py`, and `templates/`
 2. Check whether `.venv/`, `node_modules/`, and required CLIs already exist
-3. If dependencies are missing or broken, run `./install.sh`
+3. If dependencies are missing or broken, run `./setup.sh`
 4. Inspect current orchestrator assets if they already exist:
    - `orchestrator.yaml`
    - `start-orchestrator.sh`
